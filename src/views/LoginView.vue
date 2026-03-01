@@ -3,8 +3,10 @@ import { ref } from 'vue'
 import { useRouter } from 'vue-router'
 import ThemeToggle from '../components/ThemeToggle.vue'
 import api from '../services/api'
+import { useAuthStore } from '../stores/auth'
 
 const router = useRouter()
+const authStore = useAuthStore()
 
 const isLoginMode = ref(true)
 const username = ref('')
@@ -22,12 +24,12 @@ const handleSubmit = async () => {
 
   try {
     if (isLoginMode.value) {
-      // 1. TENTATIVA DE LOGIN
       await api.post('/auth/login', {
         username: username.value,
         password: password.value
       })
 
+      await authStore.fetchUser()
       router.push('/dashboard')
 
     } else {
