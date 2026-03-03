@@ -9,12 +9,14 @@ const authStore = useAuthStore()
 const menuItems = [
     { name: 'Dashboard', path: '/dashboard', icon: '📊' },
     { name: 'Transações', path: '/transacoes', icon: '💸' },
+    { name: 'Cartões', path: '/cartoes', icon: '💳' },
+    { name: 'Caixinhas & CDI', path: '/metas', icon: '🎯' },
     { name: 'Cadastros', path: '/cadastros', icon: '⚙️' }
 ]
 
-const handleLogout = () => {
-    authStore.clearUser() 
-    router.push('/')
+const handleLogout = async () => {
+    await authStore.logout() 
+    window.location.href = '/'
 }
 </script>
 

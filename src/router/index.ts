@@ -4,6 +4,8 @@ import LoginView from '../views/LoginView.vue'
 import MainLayout from '../layouts/MainLayout.vue'
 import DashboardView from '../views/DashboardView.vue'
 import TransactionsView from '../views/TransactionsView.vue'
+import CardsView from '../views/CardsView.vue'
+import GoalsView from '../views/GoalsView.vue'
 import SettingsView from '../views/SettingsView.vue'
 
 const router = createRouter({
@@ -15,14 +17,14 @@ const router = createRouter({
       component: LoginView
     },
     {
-      // A Rota Pai (O Molde)
       path: '/',
       component: MainLayout,
       meta: { requiresAuth: true },
-      // As Rotas Filhas (Injetadas no meio do Layout)
       children: [
         { path: 'dashboard', name: 'dashboard', component: DashboardView },
         { path: 'transacoes', name: 'transactions', component: TransactionsView },
+        { path: 'cartoes', name: 'cards', component: CardsView },
+        { path: 'metas', name: 'goals', component: GoalsView },
         { path: 'cadastros', name: 'settings', component: SettingsView }
       ]
     }

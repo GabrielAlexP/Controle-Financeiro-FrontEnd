@@ -16,9 +16,14 @@ export const useAuthStore = defineStore('auth', () => {
     }
   }
 
-  const clearUser = () => {
-    user.value = null
+  const logout = async () => {
+    try {
+      await api.post('/auth/logout')
+    } catch (error) {
+    } finally {
+      user.value = null
+    }
   }
 
-  return { user, isAuthenticated, fetchUser, clearUser }
+  return { user, isAuthenticated, fetchUser, logout }
 })
