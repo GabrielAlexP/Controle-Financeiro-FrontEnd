@@ -1,17 +1,17 @@
 <script setup lang="ts">
-import { ref, onMounted } from 'vue'
+import { ref, onMounted } from "vue";
 
-const isDark = ref(false)
+const isDark = ref(false);
 
 onMounted(() => {
-  isDark.value = document.documentElement.classList.contains('dark')
-})
+  isDark.value = document.documentElement.classList.contains("dark");
+});
 
 const toggleTheme = () => {
-  const htmlElement = document.documentElement
-  htmlElement.classList.toggle('dark')
-  isDark.value = htmlElement.classList.contains('dark')
-}
+  const htmlElement = document.documentElement;
+  htmlElement.classList.toggle("dark");
+  isDark.value = htmlElement.classList.contains("dark");
+};
 </script>
 
 <template>
@@ -23,7 +23,6 @@ const toggleTheme = () => {
 </template>
 
 <style scoped>
-
 .wall-switch-plate {
   width: 40px;
   height: 70px;
@@ -36,7 +35,7 @@ const toggleTheme = () => {
   align-items: center;
   justify-content: center;
   cursor: pointer;
-  perspective: 200px; 
+  perspective: 200px;
   transition: transform 0.2s ease, box-shadow 0.2s ease;
 }
 
@@ -51,15 +50,13 @@ const toggleTheme = () => {
   background: linear-gradient(to bottom, #f1f5f9, #94a3b8);
   border-radius: 4px;
 
-  box-shadow: 
-    0 6px 4px -2px rgba(0, 0, 0, 0.4),
-    inset 0 2px 2px rgba(255, 255, 255, 0.9),
+  box-shadow: 0 6px 4px -2px rgba(0, 0, 0, 0.4), inset 0 2px 2px rgba(255, 255, 255, 0.9),
     inset 0 -2px 2px rgba(0, 0, 0, 0.3);
 
   transform: rotateX(25deg);
   transform-style: preserve-3d;
-  transition: all 0.3s cubic-bezier(0.4, 0.0, 0.2, 1);
-  
+  transition: all 0.3s cubic-bezier(0.4, 0, 0.2, 1);
+
   display: flex;
   align-items: center;
   justify-content: center;
@@ -74,11 +71,9 @@ const toggleTheme = () => {
 
 .wall-switch-button.is-dark-mode {
   background: linear-gradient(to bottom, #475569, #1e293b);
-  box-shadow: 
-    0 -6px 4px -2px rgba(0, 0, 0, 0.6),
-    inset 0 -2px 2px rgba(255, 255, 255, 0.2),
-    inset 0 2px 2px rgba(0, 0, 0, 0.5);
-    
+  box-shadow: 0 -6px 4px -2px rgba(0, 0, 0, 0.6),
+    inset 0 -2px 2px rgba(255, 255, 255, 0.2), inset 0 2px 2px rgba(0, 0, 0, 0.5);
+
   transform: rotateX(-25deg);
 }
 

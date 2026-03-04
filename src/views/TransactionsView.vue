@@ -1,171 +1,187 @@
 <script setup lang="ts">
-import { ref, computed, onMounted } from 'vue'
-import { useTransactionStore } from '../stores/transaction'
-import { useFinanceStore } from '../stores/finance'
-import TransactionModal from '../components/TransactionModal.vue'
-import ConfirmModal from '../components/ConfirmModal.vue'
+import { ref, computed, onMounted } from "vue";
+import { useTransactionStore } from "../stores/transaction";
+import { useFinanceStore } from "../stores/finance";
+import TransactionModal from "../components/shared/TransactionModal.vue";
+import ConfirmModal from "../components/shared/ConfirmModal.vue";
 
-const transactionStore = useTransactionStore()
-const financeStore = useFinanceStore()
+const transactionStore = useTransactionStore();
+const financeStore = useFinanceStore();
 
-const isModalOpen = ref(false)
+const isModalOpen = ref(false);
 
-const filterMonth = ref(`${new Date().getFullYear()}-${String(new Date().getMonth() + 1).padStart(2, '0')}`)
-const filterType = ref('all')
-const filterStatus = ref('all')
-const filterCategory = ref('all')
-const searchQuery = ref('')
+const filterMonth = ref(
+  `${new Date().getFullYear()}-${String(new Date().getMonth() + 1).padStart(2, "0")}`
+);
+const filterType = ref("all");
+const filterStatus = ref("all");
+const filterCategory = ref("all");
+const searchQuery = ref("");
 
-const currentPage = ref(1)
-const itemsPerPage = 10
+const currentPage = ref(1);
+const itemsPerPage = 10;
 
 const confirmModal = ref({
   isOpen: false,
-  title: '',
-  message: '',
-  type: 'primary' as 'primary' | 'danger' | 'success',
+  title: "",
+  message: "",
+  type: "primary" as "primary" | "danger" | "success",
   isLoading: false,
-  action: async () => {}
-})
+  action: async () => {},
+});
 
 onMounted(async () => {
   if (transactionStore.transactions.length === 0) {
-    await transactionStore.fetchTransactions()
+    await transactionStore.fetchTransactions();
   }
   if (financeStore.categories.length === 0) {
-    await financeStore.fetchAllData()
+    await financeStore.fetchAllData();
   }
-})
+});
 
 const getCategoryColor = (categoryId: number) => {
-  const cat = financeStore.categories.find(c => c.id === categoryId)
-  return cat ? cat.colorHex : '#94A3B8'
-}
+  const cat = financeStore.categories.find((c) => c.id === categoryId);
+  return cat ? cat.colorHex : "#94A3B8";
+};
 
 const getCategoryIcon = (categoryId: number) => {
-  const cat = financeStore.categories.find(c => c.id === categoryId)
-  return cat ? cat.icon : '📌'
-}
+  const cat = financeStore.categories.find((c) => c.id === categoryId);
+  return cat ? cat.icon : "📌";
+};
 
 const filteredTransactions = computed(() => {
-  let filtered = transactionStore.transactions
+  let filtered = transactionStore.transactions;
 
-  if (filterMonth.value && filterMonth.value !== '') {
-    filtered = filtered.filter(tx => tx.transactionDate && tx.transactionDate.substring(0, 7) === filterMonth.value)
+  if (filterMonth.value && filterMonth.value !== "") {
+    filtered = filtered.filter(
+      (tx) =>
+        tx.transactionDate && tx.transactionDate.substring(0, 7) === filterMonth.value
+    );
   }
 
-  if (filterType.value !== 'all') {
-    filtered = filtered.filter(tx => tx.type === filterType.value)
+  if (filterType.value !== "all") {
+    filtered = filtered.filter((tx) => tx.type === filterType.value);
   }
 
-  if (filterStatus.value !== 'all') {
-    const isPaid = filterStatus.value === 'paid'
-    filtered = filtered.filter(tx => tx.isPaid === isPaid)
+  if (filterStatus.value !== "all") {
+    const isPaid = filterStatus.value === "paid";
+    filtered = filtered.filter((tx) => tx.isPaid === isPaid);
   }
 
-  if (filterCategory.value !== 'all') {
-    filtered = filtered.filter(tx => tx.categoryId === Number(filterCategory.value))
+  if (filterCategory.value !== "all") {
+    filtered = filtered.filter((tx) => tx.categoryId === Number(filterCategory.value));
   }
 
-  if (searchQuery.value.trim() !== '') {
-    const query = searchQuery.value.toLowerCase()
-    filtered = filtered.filter(tx =>
-      (tx.description && tx.description.toLowerCase().includes(query)) ||
-      (tx.categoryName && tx.categoryName.toLowerCase().includes(query)) ||
-      (tx.accountName && tx.accountName.toLowerCase().includes(query))
-    )
+  if (searchQuery.value.trim() !== "") {
+    const query = searchQuery.value.toLowerCase();
+    filtered = filtered.filter(
+      (tx) =>
+        (tx.description && tx.description.toLowerCase().includes(query)) ||
+        (tx.categoryName && tx.categoryName.toLowerCase().includes(query)) ||
+        (tx.accountName && tx.accountName.toLowerCase().includes(query))
+    );
   }
 
-  return filtered
-})
+  return filtered;
+});
 
 const totalPages = computed(() => {
-  return Math.ceil(filteredTransactions.value.length / itemsPerPage) || 1
-})
+  return Math.ceil(filteredTransactions.value.length / itemsPerPage) || 1;
+});
 
 const paginatedTransactions = computed(() => {
-  const start = (currentPage.value - 1) * itemsPerPage
-  const end = start + itemsPerPage
-  return filteredTransactions.value.slice(start, end)
-})
+  const start = (currentPage.value - 1) * itemsPerPage;
+  const end = start + itemsPerPage;
+  return filteredTransactions.value.slice(start, end);
+});
 
 const nextPage = () => {
-  if (currentPage.value < totalPages.value) currentPage.value++
-}
+  if (currentPage.value < totalPages.value) currentPage.value++;
+};
 
 const prevPage = () => {
-  if (currentPage.value > 1) currentPage.value--
-}
+  if (currentPage.value > 1) currentPage.value--;
+};
 
-const formatCurrency = (value: number) => new Intl.NumberFormat('pt-BR', { style: 'currency', currency: 'BRL' }).format(value)
+const formatCurrency = (value: number) =>
+  new Intl.NumberFormat("pt-BR", { style: "currency", currency: "BRL" }).format(value);
 
 const formatDate = (dateStr: string) => {
-  if (!dateStr) return ''
-  const [year, month, day] = dateStr.split('-')
-  return `${day}/${month}/${year}`
-}
+  if (!dateStr) return "";
+  const [year, month, day] = dateStr.split("-");
+  return `${day}/${month}/${year}`;
+};
 
-const getLocalTodayString = () => {
-  const date = new Date()
-  return new Date(date.getTime() - (date.getTimezoneOffset() * 60000)).toISOString().split('T')[0]
-}
+const getLocalTodayString = (): string => {
+  const date = new Date();
+  const dateAdjusted = new Date(date.getTime() - date.getTimezoneOffset() * 60000);
+  return dateAdjusted.toISOString().split("T")[0] || "";
+};
 
 const isCurrentMonthPending = (tx: any) => {
-  if (tx.isPaid) return false
-  const currentMonth = getLocalTodayString().substring(0, 7)
-  const txMonth = tx.transactionDate.substring(0, 7)
-  return txMonth === currentMonth
-}
+  if (tx.isPaid || !tx.transactionDate) return false;
+  const currentMonth = getLocalTodayString().substring(0, 7);
+  const txMonth = tx.transactionDate.substring(0, 7);
+  return txMonth === currentMonth;
+};
 
-const openConfirmModal = (title: string, message: string, type: 'primary' | 'danger' | 'success', action: () => Promise<void>) => {
-  confirmModal.value.title = title
-  confirmModal.value.message = message
-  confirmModal.value.type = type
-  confirmModal.value.action = action
-  confirmModal.value.isOpen = true
-}
+const openConfirmModal = (
+  title: string,
+  message: string,
+  type: "primary" | "danger" | "success",
+  action: () => Promise<void>
+) => {
+  confirmModal.value.title = title;
+  confirmModal.value.message = message;
+  confirmModal.value.type = type;
+  confirmModal.value.action = action;
+  confirmModal.value.isOpen = true;
+};
 
 const executeConfirmAction = async () => {
-  confirmModal.value.isLoading = true
+  confirmModal.value.isLoading = true;
   try {
-    await confirmModal.value.action()
-    await financeStore.fetchAllData()
-    confirmModal.value.isOpen = false
+    await confirmModal.value.action();
+    await financeStore.fetchAllData();
+    confirmModal.value.isOpen = false;
   } catch (error: any) {
-    alert(error.response?.data?.error || 'Erro ao processar a ação.')
+    alert(error.response?.data?.error || "Erro ao processar a ação.");
   } finally {
-    confirmModal.value.isLoading = false
+    confirmModal.value.isLoading = false;
   }
-}
+};
 
 const handlePayClick = (tx: any) => {
-  const localToday = getLocalTodayString()
+  const localToday = getLocalTodayString();
+  const txDate = tx.transactionDate || "";
 
-  if (tx.transactionDate > localToday) {
+  if (txDate > localToday) {
     openConfirmModal(
-      'Antecipar Pagamento?',
-      `Esta transação está agendada para ${formatDate(tx.transactionDate)}. Deseja antecipar o pagamento para hoje? O valor será descontado da conta vinculada imediatamente.`,
-      'success',
+      "Antecipar Pagamento?",
+      `Esta transação está agendada para ${formatDate(
+        txDate
+      )}. Deseja antecipar o pagamento para hoje? O valor será descontado da conta vinculada imediatamente.`,
+      "success",
       () => transactionStore.advanceTransaction(tx.id)
-    )
+    );
   } else {
     openConfirmModal(
-      'Confirmar Pagamento?',
-      'Deseja confirmar este pagamento? O valor será descontado do saldo da conta vinculada.',
-      'success',
+      "Confirmar Pagamento?",
+      "Deseja confirmar este pagamento? O valor será descontado do saldo da conta vinculada.",
+      "success",
       () => transactionStore.markAsPaid(tx.id)
-    )
+    );
   }
-}
+};
 
 const handleDeleteClick = (id: number) => {
   openConfirmModal(
-    'Excluir Transação?',
-    'Tem certeza que deseja excluir esta transação? O saldo da sua conta será recalculado e esta ação não pode ser desfeita.',
-    'danger',
+    "Excluir Transação?",
+    "Tem certeza que deseja excluir esta transação? O saldo da sua conta será recalculado e esta ação não pode ser desfeita.",
+    "danger",
     () => transactionStore.deleteTransaction(id)
-  )
-}
+  );
+};
 </script>
 
 <template>
@@ -181,11 +197,11 @@ const handleDeleteClick = (id: number) => {
     <div class="filters-bar glass-card">
       <div class="filter-group">
         <label>Período</label>
-        <input 
-          type="month" 
-          v-model="filterMonth" 
-          class="styled-input month-picker" 
-          @change="currentPage = 1" 
+        <input
+          type="month"
+          v-model="filterMonth"
+          class="styled-input month-picker"
+          @change="currentPage = 1"
         />
       </div>
 
@@ -227,8 +243,13 @@ const handleDeleteClick = (id: number) => {
         <label>Buscar Lançamento</label>
         <div class="search-wrapper">
           <span class="search-icon">🔍</span>
-          <input type="text" v-model="searchQuery" @input="currentPage = 1" placeholder="Ex: Mercado, Uber..."
-            class="styled-input search-input" />
+          <input
+            type="text"
+            v-model="searchQuery"
+            @input="currentPage = 1"
+            placeholder="Ex: Mercado, Uber..."
+            class="styled-input search-input"
+          />
         </div>
       </div>
     </div>
@@ -252,7 +273,12 @@ const handleDeleteClick = (id: number) => {
             </tr>
           </thead>
           <tbody>
-            <tr v-for="tx in paginatedTransactions" :key="tx.id" class="table-row" :class="{ 'highlight-pending': isCurrentMonthPending(tx) }">
+            <tr
+              v-for="tx in paginatedTransactions"
+              :key="tx.id"
+              class="table-row"
+              :class="{ 'highlight-pending': isCurrentMonthPending(tx) }"
+            >
               <td>
                 <span class="date">{{ formatDate(tx.transactionDate) }}</span>
               </td>
@@ -268,31 +294,52 @@ const handleDeleteClick = (id: number) => {
                 </div>
               </td>
               <td>
-                <span class="cat-badge"
-                  :style="{ backgroundColor: getCategoryColor(tx.categoryId) + '20', color: getCategoryColor(tx.categoryId), borderColor: getCategoryColor(tx.categoryId) + '40' }">
+                <span
+                  class="cat-badge"
+                  :style="{
+                    backgroundColor: getCategoryColor(tx.categoryId) + '20',
+                    color: getCategoryColor(tx.categoryId),
+                    borderColor: getCategoryColor(tx.categoryId) + '40',
+                  }"
+                >
                   {{ getCategoryIcon(tx.categoryId) }} {{ tx.categoryName }}
                 </span>
               </td>
               <td>
                 <div class="info-col">
                   <span class="account-name">🏦 {{ tx.accountName }}</span>
-                  <span v-if="tx.creditCardName" class="card-name">💳 {{ tx.creditCardName }}</span>
+                  <span v-if="tx.creditCardName" class="card-name"
+                    >💳 {{ tx.creditCardName }}</span
+                  >
                 </div>
               </td>
               <td class="text-right">
                 <div class="amount-col" :class="tx.type.toLowerCase()">
-                  {{ tx.type === 'INCOME' ? '+' : '-' }} {{ formatCurrency(tx.amount) }}
+                  {{ tx.type === "INCOME" ? "+" : "-" }} {{ formatCurrency(tx.amount) }}
                 </div>
               </td>
               <td class="text-center">
                 <span class="status-badge" :class="tx.isPaid ? 'paid' : 'pending'">
-                  {{ tx.isPaid ? 'Pago' : 'Pendente' }}
+                  {{ tx.isPaid ? "Pago" : "Pendente" }}
                 </span>
               </td>
               <td>
                 <div class="actions-wrapper">
-                  <button v-if="!tx.isPaid" @click="handlePayClick(tx)" class="action-btn check" title="Realizar Pagamento">✅</button>
-                  <button @click="handleDeleteClick(tx.id)" class="action-btn delete" title="Excluir Transação">🗑️</button>
+                  <button
+                    v-if="!tx.isPaid"
+                    @click="handlePayClick(tx)"
+                    class="action-btn check"
+                    title="Realizar Pagamento"
+                  >
+                    ✅
+                  </button>
+                  <button
+                    @click="handleDeleteClick(tx.id)"
+                    class="action-btn delete"
+                    title="Excluir Transação"
+                  >
+                    🗑️
+                  </button>
                 </div>
               </td>
             </tr>
@@ -310,20 +357,28 @@ const handleDeleteClick = (id: number) => {
 
       <div class="pagination" v-if="filteredTransactions.length > 0">
         <span class="page-info">
-          Mostrando <strong>{{ paginatedTransactions.length }}</strong> de <strong>{{ filteredTransactions.length
-            }}</strong> transações
+          Mostrando <strong>{{ paginatedTransactions.length }}</strong> de
+          <strong>{{ filteredTransactions.length }}</strong> transações
         </span>
         <div class="page-controls">
-          <button class="page-btn" :disabled="currentPage === 1" @click="prevPage">Anterior</button>
+          <button class="page-btn" :disabled="currentPage === 1" @click="prevPage">
+            Anterior
+          </button>
           <span class="page-current">Página {{ currentPage }} de {{ totalPages }}</span>
-          <button class="page-btn" :disabled="currentPage === totalPages" @click="nextPage">Próxima</button>
+          <button
+            class="page-btn"
+            :disabled="currentPage === totalPages"
+            @click="nextPage"
+          >
+            Próxima
+          </button>
         </div>
       </div>
     </div>
 
     <TransactionModal :is-open="isModalOpen" @close="isModalOpen = false" />
 
-    <ConfirmModal 
+    <ConfirmModal
       :is-open="confirmModal.isOpen"
       :title="confirmModal.title"
       :message="confirmModal.message"
@@ -428,7 +483,7 @@ const handleDeleteClick = (id: number) => {
 }
 
 .styled-input:focus {
-  border-color: #8B5CF6;
+  border-color: #8b5cf6;
 }
 
 .month-picker {
@@ -500,7 +555,7 @@ const handleDeleteClick = (id: number) => {
 
 .highlight-pending {
   background: linear-gradient(90deg, rgba(245, 158, 11, 0.05) 0%, transparent 100%);
-  border-left: 4px solid #F59E0B;
+  border-left: 4px solid #f59e0b;
 }
 
 .highlight-pending td:first-child {
@@ -560,7 +615,7 @@ const handleDeleteClick = (id: number) => {
 
 .card-name {
   font-size: 0.75rem;
-  color: #8B5CF6;
+  color: #8b5cf6;
   font-weight: 600;
 }
 
@@ -582,11 +637,11 @@ const handleDeleteClick = (id: number) => {
 }
 
 .amount-col.income {
-  color: #10B981;
+  color: #10b981;
 }
 
 .amount-col.expense {
-  color: #EF4444;
+  color: #ef4444;
 }
 
 .status-badge {
@@ -600,12 +655,12 @@ const handleDeleteClick = (id: number) => {
 
 .status-badge.paid {
   background: rgba(16, 185, 129, 0.1);
-  color: #10B981;
+  color: #10b981;
 }
 
 .status-badge.pending {
   background: rgba(245, 158, 11, 0.1);
-  color: #F59E0B;
+  color: #f59e0b;
 }
 
 .actions-wrapper {
@@ -629,7 +684,7 @@ const handleDeleteClick = (id: number) => {
 }
 
 .action-btn.delete:hover {
-  background: #EF4444;
+  background: #ef4444;
   color: white;
   transform: scale(1.1);
 }
@@ -641,8 +696,8 @@ const handleDeleteClick = (id: number) => {
 }
 
 .action-btn.check:hover {
-  background: #10B981;
-  border-color: #10B981;
+  background: #10b981;
+  border-color: #10b981;
   filter: grayscale(0);
   transform: scale(1.1);
   color: white;
@@ -708,7 +763,7 @@ const handleDeleteClick = (id: number) => {
 
 .page-btn:hover:not(:disabled) {
   background: var(--glass-bg);
-  border-color: #8B5CF6;
+  border-color: #8b5cf6;
 }
 
 .page-btn:disabled {

@@ -1,15 +1,15 @@
 <script setup lang="ts">
 defineProps<{
-  isOpen: boolean
-  title: string
-  message: string
-  confirmText?: string
-  cancelText?: string
-  type?: 'primary' | 'danger' | 'success'
-  isLoading?: boolean
-}>()
+  isOpen: boolean;
+  title: string;
+  message: string;
+  confirmText?: string;
+  cancelText?: string;
+  type?: "primary" | "danger" | "success";
+  isLoading?: boolean;
+}>();
 
-const emit = defineEmits(['confirm', 'cancel'])
+const emit = defineEmits(["confirm", "cancel"]);
 </script>
 
 <template>
@@ -17,21 +17,32 @@ const emit = defineEmits(['confirm', 'cancel'])
     <div class="modal-content glass-card animate-fade">
       <div class="modal-header">
         <span class="modal-icon" :class="type || 'primary'">
-          {{ type === 'danger' ? '⚠️' : type === 'success' ? '✅' : '❓' }}
+          {{ type === "danger" ? "⚠️" : type === "success" ? "✅" : "❓" }}
         </span>
         <h2>{{ title }}</h2>
       </div>
-      
+
       <div class="modal-body">
         <p>{{ message }}</p>
       </div>
 
       <div class="modal-actions">
-        <button type="button" class="btn-outline" @click="emit('cancel')" :disabled="isLoading">
-          {{ cancelText || 'Cancelar' }}
+        <button
+          type="button"
+          class="btn-outline"
+          @click="emit('cancel')"
+          :disabled="isLoading"
+        >
+          {{ cancelText || "Cancelar" }}
         </button>
-        <button type="button" class="btn-confirm" :class="type || 'primary'" @click="emit('confirm')" :disabled="isLoading">
-          {{ isLoading ? 'Processando...' : (confirmText || 'Confirmar') }}
+        <button
+          type="button"
+          class="btn-confirm"
+          :class="type || 'primary'"
+          @click="emit('confirm')"
+          :disabled="isLoading"
+        >
+          {{ isLoading ? "Processando..." : confirmText || "Confirmar" }}
         </button>
       </div>
     </div>
@@ -86,17 +97,17 @@ const emit = defineEmits(['confirm', 'cancel'])
 
 .modal-icon.danger {
   background: rgba(239, 68, 68, 0.1);
-  color: #EF4444;
+  color: #ef4444;
 }
 
 .modal-icon.success {
   background: rgba(16, 185, 129, 0.1);
-  color: #10B981;
+  color: #10b981;
 }
 
 .modal-icon.primary {
   background: rgba(139, 92, 246, 0.1);
-  color: #8B5CF6;
+  color: #8b5cf6;
 }
 
 .modal-header h2 {
@@ -155,7 +166,7 @@ const emit = defineEmits(['confirm', 'cancel'])
 }
 
 .btn-confirm.danger {
-  background: #EF4444;
+  background: #ef4444;
 }
 
 .btn-confirm.danger:hover:not(:disabled) {
@@ -164,7 +175,7 @@ const emit = defineEmits(['confirm', 'cancel'])
 }
 
 .btn-confirm.success {
-  background: #10B981;
+  background: #10b981;
 }
 
 .btn-confirm.success:hover:not(:disabled) {

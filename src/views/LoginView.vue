@@ -1,73 +1,72 @@
 <script setup lang="ts">
-import { ref } from 'vue'
-import { useRouter } from 'vue-router'
-import ThemeToggle from '../components/ThemeToggle.vue'
-import api from '../services/api'
-import { useAuthStore } from '../stores/auth'
+import { ref } from "vue";
+import { useRouter } from "vue-router";
+import ThemeToggle from "../components/shared/ThemeToggle.vue";
+import api from "../services/api";
+import { useAuthStore } from "../stores/auth";
 
-const router = useRouter()
-const authStore = useAuthStore()
+const router = useRouter();
+const authStore = useAuthStore();
 
-const isLoginMode = ref(true)
-const username = ref('')
-const password = ref('')
-const profilePic = ref('')
+const isLoginMode = ref(true);
+const username = ref("");
+const password = ref("");
+const profilePic = ref("");
 
-const isLoading = ref(false)
-const errorMessage = ref('')
-const successMessage = ref('')
+const isLoading = ref(false);
+const errorMessage = ref("");
+const successMessage = ref("");
 
 const handleSubmit = async () => {
-  errorMessage.value = ''
-  successMessage.value = ''
-  isLoading.value = true
+  errorMessage.value = "";
+  successMessage.value = "";
+  isLoading.value = true;
 
   try {
     if (isLoginMode.value) {
-      await api.post('/auth/login', {
-        username: username.value,
-        password: password.value
-      })
-
-      await authStore.fetchUser()
-      router.push('/dashboard')
-
-    } else {
-      await api.post('/auth/register', {
+      await api.post("/auth/login", {
         username: username.value,
         password: password.value,
-        profilePictureUrl: profilePic.value || undefined
-      })
+      });
 
-      successMessage.value = 'Conta criada com sucesso! Por favor, faça login.'
-      isLoginMode.value = true
-      password.value = ''
+      await authStore.fetchUser();
+      router.push("/dashboard");
+    } else {
+      await api.post("/auth/register", {
+        username: username.value,
+        password: password.value,
+        profilePictureUrl: profilePic.value || undefined,
+      });
+
+      successMessage.value = "Conta criada com sucesso! Por favor, faça login.";
+      isLoginMode.value = true;
+      password.value = "";
     }
   } catch (error: any) {
     if (error.response && error.response.data) {
-      const data = error.response.data
+      const data = error.response.data;
 
       if (data.error) {
-        errorMessage.value = data.error
+        errorMessage.value = data.error;
       } else {
-        errorMessage.value = Object.values(data)[0] as string
+        errorMessage.value = Object.values(data)[0] as string;
       }
     } else {
-      errorMessage.value = 'Erro de conexão com o servidor.'
+      errorMessage.value = "Erro de conexão com o servidor.";
     }
   } finally {
-    isLoading.value = false
+    isLoading.value = false;
   }
-}
+};
 
 const toggleMode = () => {
-  isLoginMode.value = !isLoginMode.value
-  username.value = ''
-  password.value = ''
-  profilePic.value = ''
-  errorMessage.value = ''
-  successMessage.value = ''
-}
+  isLoginMode.value = !isLoginMode.value;
+  username.value = "";
+  password.value = "";
+  profilePic.value = "";
+  errorMessage.value = "";
+  successMessage.value = "";
+};
 </script>
 
 <template>
@@ -82,62 +81,108 @@ const toggleMode = () => {
     <main class="glass-card login-box">
       <div class="header">
         <h1>FinanceApp</h1>
-        <p>{{ isLoginMode ? 'Bem-vindo de volta.' : 'Comece a controlar seu dinheiro.' }}</p>
+        <p>
+          {{ isLoginMode ? "Bem-vindo de volta." : "Comece a controlar seu dinheiro." }}
+        </p>
       </div>
 
       <div v-if="errorMessage" class="alert alert-error">{{ errorMessage }}</div>
       <div v-if="successMessage" class="alert alert-success">{{ successMessage }}</div>
 
       <Transition name="slide-fade" mode="out-in">
-        <form v-if="isLoginMode" @submit.prevent="handleSubmit" class="login-form" key="login">
+        <form
+          v-if="isLoginMode"
+          @submit.prevent="handleSubmit"
+          class="login-form"
+          key="login"
+        >
           <div class="input-group">
             <label for="username">Usuário</label>
-            <input type="text" id="username" v-model="username" placeholder="Digite seu usuário" required
-              :disabled="isLoading" />
+            <input
+              type="text"
+              id="username"
+              v-model="username"
+              placeholder="Digite seu usuário"
+              required
+              :disabled="isLoading"
+            />
           </div>
 
           <div class="input-group">
             <label for="password">Senha</label>
-            <input type="password" id="password" v-model="password" placeholder="Sua senha" required
-              :disabled="isLoading" />
+            <input
+              type="password"
+              id="password"
+              v-model="password"
+              placeholder="Sua senha"
+              required
+              :disabled="isLoading"
+            />
           </div>
 
           <button type="submit" class="btn-primary" :disabled="isLoading">
-            {{ isLoading ? 'Processando...' : 'Entrar' }}
+            {{ isLoading ? "Processando..." : "Entrar" }}
           </button>
 
           <p class="toggle-text">
             Ainda não tem uma conta?
-            <span @click="!isLoading && toggleMode()" class="link" :class="{ disabled: isLoading }">Registre-se</span>
+            <span
+              @click="!isLoading && toggleMode()"
+              class="link"
+              :class="{ disabled: isLoading }"
+              >Registre-se</span
+            >
           </p>
         </form>
 
         <form v-else @submit.prevent="handleSubmit" class="login-form" key="register">
           <div class="input-group">
             <label for="reg-username">Novo Usuário</label>
-            <input type="text" id="reg-username" v-model="username" placeholder="Escolha um nome de usuário" required
-              :disabled="isLoading" />
+            <input
+              type="text"
+              id="reg-username"
+              v-model="username"
+              placeholder="Escolha um nome de usuário"
+              required
+              :disabled="isLoading"
+            />
           </div>
 
           <div class="input-group">
             <label for="reg-password">Criar Senha</label>
-            <input type="password" id="reg-password" v-model="password" placeholder="Crie uma senha forte" required
-              :disabled="isLoading" />
+            <input
+              type="password"
+              id="reg-password"
+              v-model="password"
+              placeholder="Crie uma senha forte"
+              required
+              :disabled="isLoading"
+            />
           </div>
 
           <div class="input-group">
             <label for="profile-pic">Foto de Perfil (Opcional)</label>
-            <input type="url" id="profile-pic" v-model="profilePic" placeholder="URL da sua foto"
-              :disabled="isLoading" />
+            <input
+              type="url"
+              id="profile-pic"
+              v-model="profilePic"
+              placeholder="URL da sua foto"
+              :disabled="isLoading"
+            />
           </div>
 
           <button type="submit" class="btn-primary" :disabled="isLoading">
-            {{ isLoading ? 'Criando Conta...' : 'Criar Conta' }}
+            {{ isLoading ? "Criando Conta..." : "Criar Conta" }}
           </button>
 
           <p class="toggle-text">
             Já possui uma conta?
-            <span @click="!isLoading && toggleMode()" class="link" :class="{ disabled: isLoading }">Faça Login</span>
+            <span
+              @click="!isLoading && toggleMode()"
+              class="link"
+              :class="{ disabled: isLoading }"
+              >Faça Login</span
+            >
           </p>
         </form>
       </Transition>
@@ -188,7 +233,6 @@ const toggleMode = () => {
 }
 
 @keyframes float {
-
   0%,
   100% {
     transform: translateY(0) scale(1);
@@ -257,7 +301,7 @@ const toggleMode = () => {
 }
 
 .input-group input:focus {
-  border-color: #8B5CF6;
+  border-color: #8b5cf6;
   box-shadow: 0 0 0 3px rgba(139, 92, 246, 0.2);
 }
 
@@ -294,14 +338,14 @@ const toggleMode = () => {
 }
 
 .toggle-text .link {
-  color: #8B5CF6;
+  color: #8b5cf6;
   font-weight: 600;
   cursor: pointer;
   transition: color 0.2s;
 }
 
 .toggle-text .link:hover:not(.disabled) {
-  color: #3B82F6;
+  color: #3b82f6;
   text-decoration: underline;
 }
 
@@ -337,13 +381,13 @@ const toggleMode = () => {
 
 .alert-error {
   background-color: rgba(239, 68, 68, 0.1);
-  color: #EF4444;
+  color: #ef4444;
   border: 1px solid rgba(239, 68, 68, 0.3);
 }
 
 .alert-success {
   background-color: rgba(16, 185, 129, 0.1);
-  color: #10B981;
+  color: #10b981;
   border: 1px solid rgba(16, 185, 129, 0.3);
 }
 

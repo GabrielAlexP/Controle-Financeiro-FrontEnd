@@ -1,15 +1,15 @@
 <script setup lang="ts">
-import Sidebar from '../components/Sidebar.vue'
-import Header from '../components/Header.vue'
+import Sidebar from "../components/layout/Sidebar.vue";
+import Header from "../components/layout/Header.vue";
 </script>
 
 <template>
   <div class="app-layout">
     <Sidebar />
-    
+
     <div class="main-container">
       <Header />
-      
+
       <main class="content-area">
         <router-view v-slot="{ Component }">
           <transition name="fade" mode="out-in">

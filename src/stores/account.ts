@@ -4,10 +4,16 @@ import api from '../services/api'
 
 export const useAccountStore = defineStore('account', () => {
   const accounts = ref<any[]>([])
+  const isLoading = ref(false)
   
   const fetchAccounts = async () => {
-    const res = await api.get('/contas')
-    accounts.value = res.data
+    isLoading.value = true
+    try {
+      const res = await api.get('/contas')
+      accounts.value = res.data
+    } finally {
+      isLoading.value = false
+    }
   }
 
   const createAccount = async (data: any) => {
@@ -26,5 +32,5 @@ export const useAccountStore = defineStore('account', () => {
     accounts.value = accounts.value.filter(a => a.id !== id)
   }
 
-  return { accounts, fetchAccounts, createAccount, updateAccount, deleteAccount }
+  return { accounts, isLoading, fetchAccounts, createAccount, updateAccount, deleteAccount }
 })
