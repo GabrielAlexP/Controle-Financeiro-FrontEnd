@@ -3,15 +3,27 @@ import { ref, computed, onMounted, watch } from 'vue'
 import { useCardStore } from '../stores/card'
 import { useFinanceStore } from '../stores/finance'
 import { useAccountStore } from '../stores/account'
+import { useTransactionStore } from '../stores/transaction'
 import CardModal from '../components/CardModal.vue'
+import ConfirmModal from '../components/ConfirmModal.vue'
 
 const cardStore = useCardStore()
 const financeStore = useFinanceStore()
 const accountStore = useAccountStore()
+const transactionStore = useTransactionStore()
 
 const isModalOpen = ref(false)
 const activeCardId = ref<number | null>(null)
 const cardToEdit = ref<any>(null)
+
+const confirmModal = ref({
+  isOpen: false,
+  title: '',
+  message: '',
+  type: 'primary' as 'primary' | 'danger' | 'success',
+  isLoading: false,
+  action: async () => {}
+})
 
 onMounted(async () => {
   await cardStore.fetchCards()
@@ -76,6 +88,13 @@ const limitPercent = computed(() => {
   return percent > 100 ? 100 : percent
 })
 
+const pendingInstallments = computed(() => {
+  if (!activeCard.value) return []
+  return financeStore.transactions
+    .filter(tx => tx.creditCardId === activeCard.value!.id && !tx.isPaid && tx.installmentTotal)
+    .sort((a, b) => new Date(a.transactionDate).getTime() - new Date(b.transactionDate).getTime())
+})
+
 const openCreateModal = () => {
   cardToEdit.value = null
   isModalOpen.value = true
@@ -86,22 +105,71 @@ const openEditModal = () => {
   isModalOpen.value = true
 }
 
-const confirmDelete = async () => {
-  if (activeCard.value && confirm('Tem certeza que deseja excluir este cartão?')) {
-    await cardStore.deleteCard(activeCard.value.id)
+const openConfirmModal = (title: string, message: string, type: 'primary' | 'danger' | 'success', action: () => Promise<void>) => {
+  confirmModal.value.title = title
+  confirmModal.value.message = message
+  confirmModal.value.type = type
+  confirmModal.value.action = action
+  confirmModal.value.isOpen = true
+}
+
+const executeConfirmAction = async () => {
+  confirmModal.value.isLoading = true
+  try {
+    await confirmModal.value.action()
+    await financeStore.fetchAllData()
+    confirmModal.value.isOpen = false
+  } catch (error: any) {
+    alert(error.response?.data?.error || 'Erro ao processar a ação.')
+  } finally {
+    confirmModal.value.isLoading = false
   }
 }
 
-const payCardBill = async () => {
-  if (!activeCard.value || currentBillAmount.value <= 0) return
-  if (confirm(`Deseja pagar a fatura de ${currentMonthName.value} no valor de ${formatCurrency(currentBillAmount.value)}?\nO valor será descontado do saldo da conta bancária vinculada.`)) {
-    try {
-      await cardStore.payBill(activeCard.value.id, currentMonthStr.value)
-      await financeStore.fetchAllData()
-    } catch (error: any) {
-      alert(error.response?.data?.error || 'Erro ao pagar a fatura.')
+const confirmDelete = () => {
+  if (!activeCard.value) return
+  openConfirmModal(
+    'Excluir Cartão?',
+    'Tem certeza que deseja excluir este cartão? O saldo da sua conta poderá ser recalculado e o histórico será afetado.',
+    'danger',
+    async () => {
+      await cardStore.deleteCard(activeCard.value!.id)
     }
-  }
+  )
+}
+
+const payCardBill = () => {
+  if (!activeCard.value || currentBillAmount.value <= 0) return
+  openConfirmModal(
+    'Pagar Fatura?',
+    `Deseja pagar a fatura de ${currentMonthName.value} no valor de ${formatCurrency(currentBillAmount.value)}? O valor será descontado do saldo da conta bancária vinculada.`,
+    'success',
+    async () => {
+      await cardStore.payBill(activeCard.value!.id, currentMonthStr.value)
+    }
+  )
+}
+
+const handleAnticipateClick = (tx: any) => {
+  openConfirmModal(
+    'Antecipar Parcela?',
+    `Deseja antecipar a parcela ${tx.installmentCurrent}/${tx.installmentTotal} de "${tx.description || tx.categoryName}" para hoje? O valor de ${formatCurrency(tx.amount)} será descontado da conta bancária imediatamente.`,
+    'success',
+    async () => {
+      await transactionStore.advanceTransaction(tx.id)
+    }
+  )
+}
+
+const getCategoryIcon = (categoryId: number) => {
+  const cat = financeStore.categories.find(c => c.id === categoryId)
+  return cat ? cat.icon : '📌'
+}
+
+const formatDate = (dateStr: string) => {
+  if (!dateStr) return '';
+  const [year, month, day] = dateStr.split('-');
+  return `${day}/${month}/${year}`;
 }
 
 const formatCurrency = (value: number) => {
@@ -120,7 +188,8 @@ const formatCurrency = (value: number) => {
     </div>
 
     <div v-if="cardStore.isLoading" class="loading-state">
-      Carregando cartões...
+      <div class="spinner"></div>
+      <h2>Carregando cartões...</h2>
     </div>
 
     <div v-else-if="cardStore.cards.length === 0" class="empty-state glass-card">
@@ -130,108 +199,153 @@ const formatCurrency = (value: number) => {
       <button class="btn-primary mt-3" @click="openCreateModal">+ Adicionar o primeiro</button>
     </div>
 
-    <div v-else class="cards-layout">
-      <div class="left-column">
-        <div class="card-selector">
-          <div v-for="card in cardStore.cards" :key="card.id" class="mini-card glass-card"
-            :class="{ active: activeCardId === card.id }" @click="activeCardId = card.id">
-            <div class="mini-icon" :style="{ color: card.color1Hex }">💳</div>
-            <div class="mini-info">
-              <h4>{{ card.name }}</h4>
-              <p>Vence dia {{ card.dueDay }}</p>
+    <template v-else>
+      <div class="cards-layout">
+        <div class="left-column">
+          <div class="card-selector">
+            <div 
+              v-for="card in cardStore.cards" 
+              :key="card.id"
+              class="mini-card glass-card"
+              :class="{ active: activeCardId === card.id }"
+              @click="activeCardId = card.id"
+            >
+              <div class="mini-icon" :style="{ color: card.color1Hex }">💳</div>
+              <div class="mini-info">
+                <h4>{{ card.name }}</h4>
+                <p>Vence dia {{ card.dueDay }}</p>
+              </div>
+            </div>
+          </div>
+
+          <div class="virtual-card-wrapper" v-if="activeCard">
+            <div 
+              class="virtual-card"
+              :style="{ background: `linear-gradient(135deg, ${activeCard.color1Hex}, ${activeCard.color2Hex})` }"
+            >
+              <div class="card-top">
+                <div class="chip"></div>
+                <div class="network-logo">💳</div>
+              </div>
+              <div class="card-middle">
+                <span class="card-number">•••• •••• •••• ••••</span>
+              </div>
+              <div class="card-bottom">
+                <div class="card-holder">
+                  <span>BANCO</span>
+                  <p>{{ activeCard.accountName }}</p>
+                </div>
+                <div class="card-expires">
+                  <span>FECHAMENTO</span>
+                  <p>DIA {{ activeCard.closingDay }}</p>
+                </div>
+              </div>
             </div>
           </div>
         </div>
 
-        <div class="virtual-card-wrapper" v-if="activeCard">
-          <div class="virtual-card"
-            :style="{ background: `linear-gradient(135deg, ${activeCard.color1Hex}, ${activeCard.color2Hex})` }">
-            <div class="card-top">
-              <div class="chip"></div>
-              <div class="network-logo">💳</div>
-            </div>
-            <div class="card-middle">
-              <span class="card-number">•••• •••• •••• ••••</span>
-            </div>
-            <div class="card-bottom">
-              <div class="card-holder">
-                <span>BANCO</span>
-                <p>{{ activeCard.accountName }}</p>
+        <div class="right-column" v-if="activeCard">
+          <div class="details-card glass-card">
+            <div class="details-header">
+              <div>
+                <h2>Fatura Atual</h2>
+                <p class="card-title-name">{{ activeCard.name }}</p>
               </div>
-              <div class="card-expires">
-                <span>FECHAMENTO</span>
-                <p>DIA {{ activeCard.closingDay }}</p>
+              <div class="header-actions">
+                <span class="status-badge" :class="limitPercent > 80 ? 'danger' : 'safe'">
+                  {{ limitPercent > 80 ? 'Atenção ao Limite' : 'Limite Saudável' }}
+                </span>
+                <button class="btn-edit" @click="openEditModal" title="Editar Cartão">✏️</button>
+                <button class="btn-delete" @click="confirmDelete" title="Excluir Cartão">🗑️</button>
               </div>
             </div>
+
+            <div class="amounts-display">
+              <div class="amount-box">
+                <span class="label">Fatura de <span style="text-transform: capitalize;">{{ currentMonthName }}</span></span>
+                <span class="value used">{{ formatCurrency(currentBillAmount) }}</span>
+              </div>
+              <div class="amount-box right">
+                <span class="label">Limite Disponível</span>
+                <span class="value available">{{ formatCurrency(availableLimit) }}</span>
+              </div>
+            </div>
+
+            <div class="limit-bar-container">
+              <div class="limit-track">
+                <div class="limit-fill"
+                  :style="{ width: limitPercent + '%', backgroundColor: limitPercent > 80 ? '#EF4444' : activeCard.color1Hex }">
+                </div>
+              </div>
+              <div class="limit-labels">
+                <span>{{ limitPercent.toFixed(1) }}% de uso</span>
+                <span>{{ formatCurrency(activeCard.limitAmount) }} (Total)</span>
+              </div>
+            </div>
+
+            <div class="dates-grid">
+              <div class="date-box">
+                <span class="icon">📅</span>
+                <div class="date-info">
+                  <span class="label">Fechamento</span>
+                  <span class="value">Dia {{ activeCard.closingDay }}</span>
+                </div>
+              </div>
+              <div class="date-box">
+                <span class="icon">🚨</span>
+                <div class="date-info">
+                  <span class="label">Vencimento</span>
+                  <span class="value">Dia {{ activeCard.dueDay }}</span>
+                </div>
+              </div>
+            </div>
+
+            <button class="btn-pay-bill" :disabled="currentBillAmount <= 0" @click="payCardBill">
+              💵 Pagar Fatura ({{ formatCurrency(currentBillAmount) }})
+            </button>
           </div>
         </div>
       </div>
 
-      <div class="right-column" v-if="activeCard">
-        <div class="details-card glass-card">
-          <div class="details-header">
-            <div>
-              <h2>Fatura Atual</h2>
-              <p class="card-title-name">{{ activeCard.name }}</p>
+      <div class="pending-installments-section glass-card" v-if="activeCard">
+        <div class="section-header">
+          <h3>Compras Parceladas (Pendentes)</h3>
+        </div>
+        
+        <div class="transaction-grid" v-if="pendingInstallments.length > 0">
+          <div class="transaction-item" v-for="tx in pendingInstallments" :key="tx.id">
+            <div class="tx-icon">{{ getCategoryIcon(tx.categoryId) }}</div>
+            <div class="tx-details">
+              <p class="tx-desc">
+                {{ tx.description || tx.categoryName }}
+                <span class="installment-badge">{{ tx.installmentCurrent }}/{{ tx.installmentTotal }}</span>
+              </p>
+              <p class="tx-date-cat">Vencimento: {{ formatDate(tx.transactionDate) }}</p>
             </div>
-            <div class="header-actions">
-              <span class="status-badge" :class="limitPercent > 80 ? 'danger' : 'safe'">
-                {{ limitPercent > 80 ? 'Atenção ao Limite' : 'Limite Saudável' }}
-              </span>
-              <button class="btn-edit" @click="openEditModal" title="Editar Cartão">✏️</button>
-              <button class="btn-delete" @click="confirmDelete" title="Excluir Cartão">🗑️</button>
+            <div class="tx-amount expense">
+              - {{ formatCurrency(tx.amount) }}
             </div>
+            <button @click="handleAnticipateClick(tx)" class="action-btn check" title="Antecipar Pagamento">⏱️</button>
           </div>
+        </div>
 
-          <div class="amounts-display">
-            <div class="amount-box">
-              <span class="label">Fatura de {{ currentMonthName }}</span>
-              <span class="value used">{{ formatCurrency(currentBillAmount) }}</span>
-            </div>
-            <div class="amount-box right">
-              <span class="label">Limite Disponível</span>
-              <span class="value available">{{ formatCurrency(availableLimit) }}</span>
-            </div>
-          </div>
-
-          <div class="limit-bar-container">
-            <div class="limit-track">
-              <div class="limit-fill"
-                :style="{ width: limitPercent + '%', backgroundColor: limitPercent > 80 ? '#EF4444' : activeCard.color1Hex }">
-              </div>
-            </div>
-            <div class="limit-labels">
-              <span>{{ limitPercent.toFixed(1) }}% de uso</span>
-              <span>{{ formatCurrency(activeCard.limitAmount) }} (Total)</span>
-            </div>
-          </div>
-
-          <div class="dates-grid">
-            <div class="date-box">
-              <span class="icon">📅</span>
-              <div class="date-info">
-                <span class="label">Fechamento</span>
-                <span class="value">Dia {{ activeCard.closingDay }}</span>
-              </div>
-            </div>
-            <div class="date-box">
-              <span class="icon">🚨</span>
-              <div class="date-info">
-                <span class="label">Vencimento</span>
-                <span class="value">Dia {{ activeCard.dueDay }}</span>
-              </div>
-            </div>
-          </div>
-
-          <button class="btn-pay-bill" :disabled="currentBillAmount <= 0" @click="payCardBill">
-            💵 Pagar Fatura ({{ formatCurrency(currentBillAmount) }})
-          </button>
-
+        <div v-else class="empty-message">
+          Nenhuma compra parcelada pendente neste cartão.
         </div>
       </div>
-    </div>
+    </template>
 
     <CardModal :is-open="isModalOpen" :card="cardToEdit" @close="isModalOpen = false" />
+    
+    <ConfirmModal 
+      :is-open="confirmModal.isOpen"
+      :title="confirmModal.title"
+      :message="confirmModal.message"
+      :type="confirmModal.type"
+      :is-loading="confirmModal.isLoading"
+      @confirm="executeConfirmAction"
+      @cancel="confirmModal.isOpen = false"
+    />
   </div>
 </template>
 
@@ -278,11 +392,26 @@ const formatCurrency = (value: number) => {
 }
 
 .loading-state {
-  text-align: center;
-  padding: 3rem;
-  color: var(--text-muted);
-  font-size: 1.2rem;
-  font-weight: 600;
+  min-height: 50vh;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  gap: 1rem;
+  color: var(--text-color);
+}
+
+.spinner {
+  width: 50px;
+  height: 50px;
+  border: 4px solid var(--glass-border);
+  border-top-color: #8B5CF6;
+  border-radius: 50%;
+  animation: spin 1s linear infinite;
+}
+
+@keyframes spin {
+  to { transform: rotate(360deg); }
 }
 
 .empty-state {
@@ -706,6 +835,152 @@ const formatCurrency = (value: number) => {
   cursor: not-allowed;
   background: var(--glass-bg);
   color: var(--text-muted);
+}
+
+/* NOVO: SEÇÃO DE PARCELAS (LARGURA TOTAL) */
+.pending-installments-section {
+  padding: 2rem;
+  display: flex;
+  flex-direction: column;
+}
+
+.section-header {
+  margin-bottom: 1.5rem;
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+}
+
+.section-header h3 {
+  font-size: 1.2rem;
+  font-weight: 700;
+  color: var(--text-color);
+}
+
+.transaction-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(350px, 1fr));
+  gap: 1.5rem;
+  max-height: 500px;
+  overflow-y: auto;
+  padding-right: 0.5rem;
+}
+
+.transaction-grid::-webkit-scrollbar {
+  width: 6px;
+}
+
+.transaction-grid::-webkit-scrollbar-thumb {
+  background: var(--glass-border);
+  border-radius: 4px;
+}
+
+.transaction-item {
+  display: flex;
+  align-items: center;
+  gap: 1rem;
+  padding: 1.2rem;
+  border-radius: 1rem;
+  background: var(--input-bg);
+  border: 1px solid transparent;
+  transition: all 0.2s;
+}
+
+.transaction-item:hover {
+  border-color: var(--glass-border);
+  transform: translateY(-3px);
+  box-shadow: 0 10px 20px rgba(0,0,0,0.1);
+}
+
+.tx-icon {
+  width: 45px;
+  height: 45px;
+  background: var(--glass-bg);
+  border-radius: 50%;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  font-size: 1.2rem;
+  flex-shrink: 0;
+}
+
+.tx-details {
+  flex: 1;
+  display: flex;
+  flex-direction: column;
+  gap: 0.3rem;
+}
+
+.tx-desc {
+  font-weight: 700;
+  color: var(--text-color);
+  display: flex;
+  align-items: center;
+  gap: 0.5rem;
+  font-size: 1.05rem;
+}
+
+.installment-badge {
+  font-size: 0.7rem;
+  padding: 0.2rem 0.5rem;
+  border-radius: 1rem;
+  background: var(--glass-bg);
+  color: var(--text-muted);
+  border: 1px solid var(--glass-border);
+}
+
+.tx-date-cat {
+  font-size: 0.85rem;
+  color: var(--text-muted);
+}
+
+.tx-amount {
+  font-weight: 800;
+  font-size: 1.2rem;
+  white-space: nowrap;
+  margin-right: 1rem;
+}
+
+.tx-amount.expense {
+  color: #EF4444;
+}
+
+.action-btn {
+  background: rgba(239, 68, 68, 0.1);
+  border: 1px solid rgba(239, 68, 68, 0.2);
+  border-radius: 0.5rem;
+  padding: 0.6rem;
+  cursor: pointer;
+  transition: all 0.2s;
+  font-size: 1.1rem;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+}
+
+.action-btn.check {
+  background: rgba(16, 185, 129, 0.1);
+  border-color: rgba(16, 185, 129, 0.2);
+  filter: grayscale(1);
+}
+
+.action-btn.check:hover {
+  background: #10B981;
+  border-color: #10B981;
+  filter: grayscale(0);
+  transform: scale(1.1);
+  color: white;
+}
+
+.empty-message {
+  padding: 3rem;
+  text-align: center;
+  color: var(--text-muted);
+  font-weight: 500;
+  background: var(--input-bg);
+  border-radius: 1rem;
+  border: 1px dashed var(--glass-border);
+  font-size: 1.1rem;
 }
 
 @media (max-width: 1024px) {
