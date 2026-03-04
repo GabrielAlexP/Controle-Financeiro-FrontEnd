@@ -2,6 +2,7 @@
 import { ref, computed, onMounted, watch } from 'vue'
 import { useFinanceStore } from '../stores/finance'
 import { useCardStore } from '../stores/card'
+import ConfirmModal from '../components/ConfirmModal.vue'
 import api from '../services/api'
 
 const financeStore = useFinanceStore()
@@ -12,6 +13,15 @@ const chartViewType = ref<'bars' | 'pie'>('bars')
 const activeDashboardCardId = ref<number | null>(null)
 
 const selectedMonth = ref(`${new Date().getFullYear()}-${String(new Date().getMonth() + 1).padStart(2, '0')}`)
+
+const confirmModal = ref({
+  isOpen: false,
+  title: '',
+  message: '',
+  type: 'primary' as 'primary' | 'danger' | 'success',
+  isLoading: false,
+  action: async () => {}
+})
 
 onMounted(async () => {
   await financeStore.fetchAllData()
@@ -135,27 +145,48 @@ const dashboardCardBillAmount = computed(() => {
     .reduce((sum, tx) => sum + tx.amount, 0)
 })
 
-const payDashboardCardBill = async () => {
-  if (!activeDashboardCard.value || dashboardCardBillAmount.value <= 0) return
-  if (confirm(`Deseja pagar a fatura no valor de ${formatCurrency(dashboardCardBillAmount.value)}?`)) {
-    try {
-      await cardStore.payBill(activeDashboardCard.value.id, selectedMonth.value)
-      await financeStore.fetchAllData()
-    } catch (error: any) {
-      alert(error.response?.data?.error || 'Erro ao pagar a fatura.')
-    }
+const openConfirmModal = (title: string, message: string, type: 'primary' | 'danger' | 'success', action: () => Promise<void>) => {
+  confirmModal.value.title = title
+  confirmModal.value.message = message
+  confirmModal.value.type = type
+  confirmModal.value.action = action
+  confirmModal.value.isOpen = true
+}
+
+const executeConfirmAction = async () => {
+  confirmModal.value.isLoading = true
+  try {
+    await confirmModal.value.action()
+    await financeStore.fetchAllData()
+    confirmModal.value.isOpen = false
+  } catch (error: any) {
+    alert(error.response?.data?.error || 'Erro ao processar a ação.')
+  } finally {
+    confirmModal.value.isLoading = false
   }
 }
 
-const markAsPaid = async (id: number) => {
-  if (confirm('Confirmar o pagamento? Esta ação atualizará o saldo da conta bancária vinculada.')) {
-    try {
-      await api.put(`/transacoes/${id}/pagar`)
-      await financeStore.fetchAllData()
-    } catch (error: any) {
-      alert(error.response?.data?.error || 'Erro ao atualizar o pagamento.')
+const payDashboardCardBill = () => {
+  if (!activeDashboardCard.value || dashboardCardBillAmount.value <= 0) return
+  openConfirmModal(
+    'Pagar Fatura?',
+    `Deseja pagar a fatura no valor de ${formatCurrency(dashboardCardBillAmount.value)}? O valor será descontado do saldo da conta bancária vinculada.`,
+    'success',
+    async () => {
+      await cardStore.payBill(activeDashboardCard.value!.id, selectedMonth.value)
     }
-  }
+  )
+}
+
+const markAsPaid = (id: number) => {
+  openConfirmModal(
+    'Confirmar Pagamento?',
+    'Deseja confirmar este pagamento? O valor será descontado do saldo da conta vinculada.',
+    'success',
+    async () => {
+      await api.put(`/transacoes/${id}/pagar`)
+    }
+  )
 }
 
 const getCategoryIcon = (categoryId: number) => {
@@ -195,7 +226,7 @@ const formatDate = (dateStr: string) => {
       <div>
         <h1 class="page-title">Visão Geral</h1>
         <p class="subtitle">
-          Resumo financeiro de <strong>{{ currentMonthFormatted }}</strong>
+          Resumo financeiro de <strong style="text-transform: capitalize;">{{ currentMonthFormatted }}</strong>
           <span v-if="activeAccountId !== 'geral'">em <strong>{{ activeAccountName }}</strong></span>
         </p>
       </div>
@@ -351,7 +382,7 @@ const formatDate = (dateStr: string) => {
 
               <div class="card-summary" v-if="activeDashboardCard">
                 <div class="bill-info">
-                  <span>Fatura de {{ currentMonthFormatted }}</span>
+                  <span>Fatura de <span style="text-transform: capitalize;">{{ currentMonthFormatted.split(' ')[0] }}</span></span>
                   <span class="bill-amount">{{ formatCurrency(dashboardCardBillAmount) }}</span>
                 </div>
                 <button class="btn-pay-bill" :disabled="dashboardCardBillAmount <= 0" @click="payDashboardCardBill">
@@ -441,6 +472,17 @@ const formatDate = (dateStr: string) => {
 
       </div>
     </Transition>
+    
+    <ConfirmModal 
+      :is-open="confirmModal.isOpen"
+      :title="confirmModal.title"
+      :message="confirmModal.message"
+      :type="confirmModal.type"
+      :is-loading="confirmModal.isLoading"
+      @confirm="executeConfirmAction"
+      @cancel="confirmModal.isOpen = false"
+    />
+
   </div>
 
   <div v-else class="loading-state">
@@ -544,6 +586,7 @@ const formatDate = (dateStr: string) => {
   outline: none;
   cursor: pointer;
   transition: border-color 0.2s;
+  text-transform: capitalize; /* Mágica para o input nativo do navegador */
 }
 
 .month-picker:focus {

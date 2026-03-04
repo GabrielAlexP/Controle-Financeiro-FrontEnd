@@ -3,6 +3,7 @@ import { ref, computed, onMounted } from 'vue'
 import { useTransactionStore } from '../stores/transaction'
 import { useFinanceStore } from '../stores/finance'
 import TransactionModal from '../components/TransactionModal.vue'
+import ConfirmModal from '../components/ConfirmModal.vue'
 
 const transactionStore = useTransactionStore()
 const financeStore = useFinanceStore()
@@ -11,10 +12,21 @@ const isModalOpen = ref(false)
 
 const filterMonth = ref('all')
 const filterType = ref('all')
+const filterStatus = ref('all')
+const filterCategory = ref('all')
 const searchQuery = ref('')
 
 const currentPage = ref(1)
 const itemsPerPage = 10
+
+const confirmModal = ref({
+  isOpen: false,
+  title: '',
+  message: '',
+  type: 'primary' as 'primary' | 'danger' | 'success',
+  isLoading: false,
+  action: async () => {}
+})
 
 onMounted(async () => {
   if (transactionStore.transactions.length === 0) {
@@ -65,6 +77,15 @@ const filteredTransactions = computed(() => {
     filtered = filtered.filter(tx => tx.type === filterType.value)
   }
 
+  if (filterStatus.value !== 'all') {
+    const isPaid = filterStatus.value === 'paid'
+    filtered = filtered.filter(tx => tx.isPaid === isPaid)
+  }
+
+  if (filterCategory.value !== 'all') {
+    filtered = filtered.filter(tx => tx.categoryId === Number(filterCategory.value))
+  }
+
   if (searchQuery.value.trim() !== '') {
     const query = searchQuery.value.toLowerCase()
     filtered = filtered.filter(tx =>
@@ -95,18 +116,74 @@ const prevPage = () => {
   if (currentPage.value > 1) currentPage.value--
 }
 
-const confirmDelete = async (id: number) => {
-  if (confirm('Tem certeza que deseja excluir esta transação? O saldo da sua conta será atualizado.')) {
-    await transactionStore.deleteTransaction(id)
-  }
-}
-
 const formatCurrency = (value: number) => new Intl.NumberFormat('pt-BR', { style: 'currency', currency: 'BRL' }).format(value)
 
 const formatDate = (dateStr: string) => {
   if (!dateStr) return ''
   const [year, month, day] = dateStr.split('-')
   return `${day}/${month}/${year}`
+}
+
+const getLocalTodayString = () => {
+  const date = new Date()
+  return new Date(date.getTime() - (date.getTimezoneOffset() * 60000)).toISOString().split('T')[0]
+}
+
+const isCurrentMonthPending = (tx: any) => {
+  if (tx.isPaid) return false
+  const currentMonth = getLocalTodayString().substring(0, 7)
+  const txMonth = tx.transactionDate.substring(0, 7)
+  return txMonth === currentMonth
+}
+
+const openConfirmModal = (title: string, message: string, type: 'primary' | 'danger' | 'success', action: () => Promise<void>) => {
+  confirmModal.value.title = title
+  confirmModal.value.message = message
+  confirmModal.value.type = type
+  confirmModal.value.action = action
+  confirmModal.value.isOpen = true
+}
+
+const executeConfirmAction = async () => {
+  confirmModal.value.isLoading = true
+  try {
+    await confirmModal.value.action()
+    await financeStore.fetchAllData()
+    confirmModal.value.isOpen = false
+  } catch (error: any) {
+    alert(error.response?.data?.error || 'Erro ao processar a ação.')
+  } finally {
+    confirmModal.value.isLoading = false
+  }
+}
+
+const handlePayClick = (tx: any) => {
+  const localToday = getLocalTodayString()
+
+  if (tx.transactionDate > localToday) {
+    openConfirmModal(
+      'Antecipar Pagamento?',
+      `Esta transação está agendada para ${formatDate(tx.transactionDate)}. Deseja antecipar o pagamento para hoje? O valor será descontado da conta vinculada imediatamente.`,
+      'success',
+      () => transactionStore.advanceTransaction(tx.id)
+    )
+  } else {
+    openConfirmModal(
+      'Confirmar Pagamento?',
+      'Deseja confirmar este pagamento? O valor será descontado do saldo da conta vinculada.',
+      'success',
+      () => transactionStore.markAsPaid(tx.id)
+    )
+  }
+}
+
+const handleDeleteClick = (id: number) => {
+  openConfirmModal(
+    'Excluir Transação?',
+    'Tem certeza que deseja excluir esta transação? O saldo da sua conta será recalculado e esta ação não pode ser desfeita.',
+    'danger',
+    () => transactionStore.deleteTransaction(id)
+  )
 }
 </script>
 
@@ -134,12 +211,35 @@ const formatDate = (dateStr: string) => {
       </div>
 
       <div class="filter-group">
-        <label>Tipo de Lançamento</label>
+        <label>Categoria</label>
+        <div class="select-wrapper">
+          <select v-model="filterCategory" class="styled-input" @change="currentPage = 1">
+            <option value="all">Todas</option>
+            <option v-for="cat in financeStore.categories" :key="cat.id" :value="cat.id">
+              {{ cat.icon }} {{ cat.name }}
+            </option>
+          </select>
+        </div>
+      </div>
+
+      <div class="filter-group">
+        <label>Status</label>
+        <div class="select-wrapper">
+          <select v-model="filterStatus" class="styled-input" @change="currentPage = 1">
+            <option value="all">Todos</option>
+            <option value="paid">Pagos</option>
+            <option value="pending">Pendentes</option>
+          </select>
+        </div>
+      </div>
+
+      <div class="filter-group">
+        <label>Tipo</label>
         <div class="select-wrapper">
           <select v-model="filterType" class="styled-input" @change="currentPage = 1">
-            <option value="all">Todas as transações</option>
-            <option value="INCOME">Apenas Receitas (+)</option>
-            <option value="EXPENSE">Apenas Despesas (-)</option>
+            <option value="all">Ambos</option>
+            <option value="INCOME">Receitas (+)</option>
+            <option value="EXPENSE">Despesas (-)</option>
           </select>
         </div>
       </div>
@@ -148,7 +248,7 @@ const formatDate = (dateStr: string) => {
         <label>Buscar Lançamento</label>
         <div class="search-wrapper">
           <span class="search-icon">🔍</span>
-          <input type="text" v-model="searchQuery" @input="currentPage = 1" placeholder="Ex: Mercado, Uber, Salário..."
+          <input type="text" v-model="searchQuery" @input="currentPage = 1" placeholder="Ex: Mercado, Uber..."
             class="styled-input search-input" />
         </div>
       </div>
@@ -173,17 +273,19 @@ const formatDate = (dateStr: string) => {
             </tr>
           </thead>
           <tbody>
-            <tr v-for="tx in paginatedTransactions" :key="tx.id" class="table-row">
+            <tr v-for="tx in paginatedTransactions" :key="tx.id" class="table-row" :class="{ 'highlight-pending': isCurrentMonthPending(tx) }">
               <td>
                 <span class="date">{{ formatDate(tx.transactionDate) }}</span>
               </td>
               <td>
                 <div class="info-col">
                   <strong>{{ tx.description || tx.categoryName }}</strong>
-                  <span v-if="tx.installmentTotal" class="installment-tag">
-                    Parcela {{ tx.installmentCurrent }}/{{ tx.installmentTotal }}
-                  </span>
-                  <span v-if="tx.isFixed" class="fixed-tag">Fixo</span>
+                  <div class="tags-container" v-if="tx.installmentTotal || tx.isFixed">
+                    <span v-if="tx.installmentTotal" class="installment-tag">
+                      Parcela {{ tx.installmentCurrent }}/{{ tx.installmentTotal }}
+                    </span>
+                    <span v-if="tx.isFixed" class="fixed-tag">Fixo</span>
+                  </div>
                 </div>
               </td>
               <td>
@@ -208,8 +310,11 @@ const formatDate = (dateStr: string) => {
                   {{ tx.isPaid ? 'Pago' : 'Pendente' }}
                 </span>
               </td>
-              <td class="text-center">
-                <button class="action-btn delete" @click="confirmDelete(tx.id)" title="Excluir Transação">🗑️</button>
+              <td>
+                <div class="actions-wrapper">
+                  <button v-if="!tx.isPaid" @click="handlePayClick(tx)" class="action-btn check" title="Realizar Pagamento">✅</button>
+                  <button @click="handleDeleteClick(tx.id)" class="action-btn delete" title="Excluir Transação">🗑️</button>
+                </div>
               </td>
             </tr>
             <tr v-if="paginatedTransactions.length === 0">
@@ -238,6 +343,16 @@ const formatDate = (dateStr: string) => {
     </div>
 
     <TransactionModal :is-open="isModalOpen" @close="isModalOpen = false" />
+
+    <ConfirmModal 
+      :is-open="confirmModal.isOpen"
+      :title="confirmModal.title"
+      :message="confirmModal.message"
+      :type="confirmModal.type"
+      :is-loading="confirmModal.isLoading"
+      @confirm="executeConfirmAction"
+      @cancel="confirmModal.isOpen = false"
+    />
   </div>
 </template>
 
@@ -304,11 +419,12 @@ const formatDate = (dateStr: string) => {
   flex-direction: column;
   gap: 0.5rem;
   flex: 1;
-  min-width: 200px;
+  min-width: 150px;
 }
 
 .filter-group.search {
   flex: 2;
+  min-width: 250px;
 }
 
 .filter-group label {
@@ -366,7 +482,7 @@ const formatDate = (dateStr: string) => {
 .finance-table {
   width: 100%;
   border-collapse: collapse;
-  min-width: 800px;
+  min-width: 900px;
 }
 
 .finance-table th,
@@ -387,11 +503,20 @@ const formatDate = (dateStr: string) => {
 }
 
 .table-row {
-  transition: background-color 0.2s;
+  transition: all 0.2s;
 }
 
 .table-row:hover {
   background-color: rgba(255, 255, 255, 0.05);
+}
+
+.highlight-pending {
+  background: linear-gradient(90deg, rgba(245, 158, 11, 0.05) 0%, transparent 100%);
+  border-left: 4px solid #F59E0B;
+}
+
+.highlight-pending td:first-child {
+  padding-left: 0.8rem;
 }
 
 .info-col {
@@ -410,6 +535,12 @@ const formatDate = (dateStr: string) => {
 .info-col strong {
   color: var(--text-color);
   font-size: 0.95rem;
+}
+
+.tags-container {
+  display: flex;
+  gap: 0.5rem;
+  flex-wrap: wrap;
 }
 
 .installment-tag,
@@ -489,8 +620,11 @@ const formatDate = (dateStr: string) => {
   color: #F59E0B;
 }
 
-.td-actions {
-  padding: 0 !important;
+.actions-wrapper {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 0.5rem;
 }
 
 .action-btn {
@@ -506,10 +640,24 @@ const formatDate = (dateStr: string) => {
   justify-content: center;
 }
 
-.action-btn:hover {
+.action-btn.delete:hover {
   background: #EF4444;
   color: white;
   transform: scale(1.1);
+}
+
+.action-btn.check {
+  background: rgba(16, 185, 129, 0.1);
+  border-color: rgba(16, 185, 129, 0.2);
+  filter: grayscale(1);
+}
+
+.action-btn.check:hover {
+  background: #10B981;
+  border-color: #10B981;
+  filter: grayscale(0);
+  transform: scale(1.1);
+  color: white;
 }
 
 .empty-state {
@@ -580,7 +728,7 @@ const formatDate = (dateStr: string) => {
   cursor: not-allowed;
 }
 
-@media (max-width: 768px) {
+@media (max-width: 900px) {
   .filters-bar {
     flex-direction: column;
     align-items: stretch;

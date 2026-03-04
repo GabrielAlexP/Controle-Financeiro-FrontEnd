@@ -24,6 +24,20 @@ export const useTransactionStore = defineStore('transaction', () => {
         await accountStore.fetchAccounts()
     }
 
+    const markAsPaid = async (id: number) => {
+        await api.put(`/transacoes/${id}/pagar`)
+        await fetchTransactions()
+        const accountStore = useAccountStore()
+        await accountStore.fetchAccounts()
+    }
+
+    const advanceTransaction = async (id: number) => {
+        await api.put(`/transacoes/${id}/antecipar`)
+        await fetchTransactions()
+        const accountStore = useAccountStore()
+        await accountStore.fetchAccounts()
+    }
+
     const deleteTransaction = async (id: number) => {
         await api.delete(`/transacoes/${id}`)
         await fetchTransactions()
@@ -31,5 +45,13 @@ export const useTransactionStore = defineStore('transaction', () => {
         await accountStore.fetchAccounts()
     }
 
-    return { transactions, isLoading, fetchTransactions, createTransaction, deleteTransaction }
+    return { 
+        transactions, 
+        isLoading, 
+        fetchTransactions, 
+        createTransaction, 
+        markAsPaid, 
+        advanceTransaction, 
+        deleteTransaction 
+    }
 })
