@@ -7,6 +7,7 @@ const emit = defineEmits(['close'])
 
 const accountStore = useAccountStore()
 const form = ref({ id: null as number | null, name: '', balance: 0 })
+const balanceDisplay = ref('')
 const errorMsg = ref('')
 const loading = ref(false)
 
@@ -15,11 +16,26 @@ watch(() => props.isOpen, (newVal) => {
     errorMsg.value = ''
     if (props.account) {
       form.value = { id: props.account.id, name: props.account.name, balance: props.account.balance }
+      balanceDisplay.value = new Intl.NumberFormat('pt-BR', { minimumFractionDigits: 2, maximumFractionDigits: 2 }).format(props.account.balance)
     } else {
       form.value = { id: null, name: '', balance: 0 }
+      balanceDisplay.value = ''
     }
   }
 })
+
+const onBalanceInput = (e: Event) => {
+  const el = e.target as HTMLInputElement
+  let val = el.value.replace(/\D/g, '') // Remove tudo que não for número
+  if (!val) {
+    balanceDisplay.value = ''
+    form.value.balance = 0
+    return
+  }
+  const num = parseInt(val, 10) / 100 // Converte para decimal
+  form.value.balance = num
+  balanceDisplay.value = new Intl.NumberFormat('pt-BR', { minimumFractionDigits: 2, maximumFractionDigits: 2 }).format(num)
+}
 
 const handleSubmit = async () => {
   errorMsg.value = ''
@@ -55,13 +71,26 @@ const handleSubmit = async () => {
           <label>Nome da Conta</label>
           <input type="text" v-model="form.name" required class="styled-input" placeholder="Ex: Nubank, Carteira..." :disabled="loading" />
         </div>
+        
         <div class="input-group">
           <label>Saldo Inicial (R$)</label>
-          <input type="number" step="0.01" v-model="form.balance" required class="styled-input" :disabled="loading" />
+          <input 
+            type="text" 
+            inputmode="numeric"
+            :value="balanceDisplay"
+            @input="onBalanceInput"
+            required 
+            class="styled-input" 
+            placeholder="Ex: 1.500,00"
+            :disabled="loading" 
+          />
         </div>
+
         <div class="modal-actions">
           <button type="button" class="btn-outline" @click="emit('close')" :disabled="loading">Cancelar</button>
-          <button type="submit" class="btn-primary" :disabled="loading">{{ loading ? 'Salvando...' : 'Salvar' }}</button>
+          <button type="submit" class="btn-primary" :disabled="loading || !form.name">
+            {{ loading ? 'Salvando...' : 'Salvar' }}
+          </button>
         </div>
       </form>
     </div>
