@@ -32,5 +32,9 @@ export const useCardStore = defineStore('card', () => {
     cards.value = cards.value.filter(c => c.id !== id)
   }
 
-  return { cards, isLoading, fetchCards, createCard, updateCard, deleteCard }
+  const payBill = async (cardId: number, month: string) => {
+    await api.post(`/transacoes/pagar-fatura/${cardId}?month=${month}`)
+  }
+
+  return { cards, isLoading, fetchCards, createCard, updateCard, deleteCard, payBill }
 })
