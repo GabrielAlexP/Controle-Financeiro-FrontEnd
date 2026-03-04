@@ -14,6 +14,7 @@ const form = ref({
   yieldType: 'NONE'
 })
 
+const targetAmountDisplay = ref('')
 const errorMsg = ref('')
 const loading = ref(false)
 
@@ -26,8 +27,22 @@ watch(() => props.isOpen, (newVal) => {
       targetAmount: null,
       yieldType: 'NONE'
     }
+    targetAmountDisplay.value = ''
   }
 })
+
+const onTargetAmountInput = (e: Event) => {
+  const el = e.target as HTMLInputElement
+  let val = el.value.replace(/\D/g, '') // Remove tudo que não for número
+  if (!val) {
+    targetAmountDisplay.value = ''
+    form.value.targetAmount = null
+    return
+  }
+  const num = parseInt(val, 10) / 100 // Converte para decimal
+  form.value.targetAmount = num
+  targetAmountDisplay.value = new Intl.NumberFormat('pt-BR', { minimumFractionDigits: 2, maximumFractionDigits: 2 }).format(num)
+}
 
 const handleSubmit = async () => {
   errorMsg.value = ''
@@ -72,7 +87,15 @@ const handleSubmit = async () => {
 
         <div class="input-group">
           <label>Valor Alvo (Opcional)</label>
-          <input type="number" step="0.01" v-model="form.targetAmount" class="styled-input" placeholder="Ex: 20000" :disabled="loading" />
+          <input 
+            type="text" 
+            inputmode="numeric"
+            :value="targetAmountDisplay" 
+            @input="onTargetAmountInput" 
+            class="styled-input" 
+            placeholder="Ex: 20.000,00" 
+            :disabled="loading" 
+          />
         </div>
 
         <div class="input-group">

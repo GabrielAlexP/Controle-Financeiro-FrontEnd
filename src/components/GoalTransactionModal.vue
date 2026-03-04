@@ -7,6 +7,7 @@ const emit = defineEmits(['close'])
 
 const goalStore = useGoalStore()
 const amount = ref<number | null>(null)
+const amountDisplay = ref('')
 const errorMsg = ref('')
 const loading = ref(false)
 
@@ -14,8 +15,22 @@ watch(() => props.isOpen, (newVal) => {
   if (newVal) {
     errorMsg.value = ''
     amount.value = null
+    amountDisplay.value = ''
   }
 })
+
+const onAmountInput = (e: Event) => {
+  const el = e.target as HTMLInputElement
+  let val = el.value.replace(/\D/g, '') // Remove tudo que não for número
+  if (!val) {
+    amountDisplay.value = ''
+    amount.value = null
+    return
+  }
+  const num = parseInt(val, 10) / 100 // Converte para decimal
+  amount.value = num
+  amountDisplay.value = new Intl.NumberFormat('pt-BR', { minimumFractionDigits: 2, maximumFractionDigits: 2 }).format(num)
+}
 
 const handleSubmit = async () => {
   errorMsg.value = ''
@@ -57,7 +72,16 @@ const handleSubmit = async () => {
       <form @submit.prevent="handleSubmit" class="modal-form">
         <div class="input-group">
           <label>Valor (R$)</label>
-          <input type="number" step="0.01" v-model="amount" required class="styled-input" :disabled="loading" />
+          <input 
+            type="text" 
+            inputmode="numeric"
+            :value="amountDisplay" 
+            @input="onAmountInput" 
+            required 
+            class="styled-input" 
+            placeholder="Ex: 500,00"
+            :disabled="loading" 
+          />
         </div>
 
         <div class="modal-actions">

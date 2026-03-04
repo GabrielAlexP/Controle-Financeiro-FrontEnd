@@ -51,9 +51,43 @@ const activeMonthlyRate = computed(() => {
 })
 
 const calcTab = ref<'time' | 'futureValue' | 'deposit'>('time')
+
+// Referências para armazenar o valor numérico real
 const calcTarget = ref<number | null>(null)
 const calcDeposit = ref<number | null>(null)
 const calcMonths = ref<number | null>(null)
+
+// Referências para armazenar o valor formatado (ex: 1.500,00) que aparece no input
+const targetDisplay = ref('')
+const depositDisplay = ref('')
+
+// Máscara de moeda para o input do Objetivo Final
+const onTargetInput = (e: Event) => {
+  const el = e.target as HTMLInputElement
+  let val = el.value.replace(/\D/g, '') // Remove tudo que não for número
+  if (!val) {
+    targetDisplay.value = ''
+    calcTarget.value = null
+    return
+  }
+  const num = parseInt(val, 10) / 100 // Transforma 1000 em 10.00
+  calcTarget.value = num
+  targetDisplay.value = new Intl.NumberFormat('pt-BR', { minimumFractionDigits: 2, maximumFractionDigits: 2 }).format(num)
+}
+
+// Máscara de moeda para o input de Aporte Mensal
+const onDepositInput = (e: Event) => {
+  const el = e.target as HTMLInputElement
+  let val = el.value.replace(/\D/g, '')
+  if (!val) {
+    depositDisplay.value = ''
+    calcDeposit.value = null
+    return
+  }
+  const num = parseInt(val, 10) / 100
+  calcDeposit.value = num
+  depositDisplay.value = new Intl.NumberFormat('pt-BR', { minimumFractionDigits: 2, maximumFractionDigits: 2 }).format(num)
+}
 
 const calcResult = computed(() => {
   const FV = calcTarget.value || 0
@@ -189,7 +223,13 @@ const calcProgress = (current: number, target: number) => {
             <label>Qual é o seu objetivo final?</label>
             <div class="input-wrapper">
               <span class="prefix">R$</span>
-              <input type="number" v-model="calcTarget" placeholder="Ex: 50000" />
+              <input 
+                type="text" 
+                inputmode="numeric"
+                :value="targetDisplay" 
+                @input="onTargetInput" 
+                placeholder="Ex: 50.000,00" 
+              />
             </div>
           </div>
 
@@ -197,7 +237,13 @@ const calcProgress = (current: number, target: number) => {
             <label>Quanto você vai depositar por mês?</label>
             <div class="input-wrapper">
               <span class="prefix">R$</span>
-              <input type="number" v-model="calcDeposit" placeholder="Ex: 500" />
+              <input 
+                type="text" 
+                inputmode="numeric"
+                :value="depositDisplay" 
+                @input="onDepositInput" 
+                placeholder="Ex: 500,00" 
+              />
             </div>
           </div>
 
@@ -271,7 +317,7 @@ const calcProgress = (current: number, target: number) => {
 .title-bank h3 { font-size: 1.1rem; color: var(--text-color); font-weight: 700; line-height: 1.2; }
 .bank-name { font-size: 0.8rem; color: var(--text-muted); font-weight: 600; }
 
-.rate-badge { font-size: 0.75rem; font-weight: 700; padding: 0.3rem 0.6rem; border-radius: 2rem; border: 1px solid; }
+.rate-badge { font-size: 0.75rem; font-weight: 700; padding: 0.3rem 0.6rem; border-radius: 2rem; border: 1px solid; white-space: nowrap; }
 .rate-badge.cdi { background: rgba(139, 92, 246, 0.1); color: #8B5CF6; border-color: rgba(139, 92, 246, 0.3); }
 .rate-badge.selic { background: rgba(245, 158, 11, 0.1); color: #F59E0B; border-color: rgba(245, 158, 11, 0.3); }
 
