@@ -1,5 +1,5 @@
 <script setup lang="ts">
-import { ref, watch, computed, onMounted } from 'vue'
+import { ref, watch, computed, onMounted, onUnmounted } from 'vue'
 import { useTransactionStore } from '../stores/transaction'
 import { useAccountStore } from '../stores/account'
 import { useCategoryStore } from '../stores/category'
@@ -39,20 +39,33 @@ const form = ref({
 const errorMsg = ref('')
 const loading = ref(false)
 
+// Variáveis para o Combobox pesquisável de Categorias
+const categorySearch = ref('')
+const isCategoryOpen = ref(false)
+const categoryDropdownRef = ref<HTMLElement | null>(null)
+
 onMounted(async () => {
+    document.addEventListener('click', handleClickOutside)
     if (cardStore.cards.length === 0) {
         await cardStore.fetchCards()
     }
 })
 
+onUnmounted(() => {
+    document.removeEventListener('click', handleClickOutside)
+})
+
 watch(() => props.isOpen, (newVal) => {
     if (newVal) {
         errorMsg.value = ''
+        
+        const defaultCat = categoryStore.categories.find(c => c.type === 'EXPENSE')
+        
         form.value = {
             type: 'EXPENSE',
             amount: null,
             description: '',
-            categoryId: categoryStore.categories.length > 0 ? categoryStore.categories[0].id : null,
+            categoryId: defaultCat ? defaultCat.id : null,
             accountId: accountStore.accounts.length > 0 ? accountStore.accounts[0].id : null,
             paymentMethod: 'ACCOUNT',
             creditCardId: cardStore.cards.length > 0 ? cardStore.cards[0].id : null,
@@ -61,6 +74,27 @@ watch(() => props.isOpen, (newVal) => {
             isFixed: false,
             isInstallment: false,
             installments: 2
+        }
+
+        if (defaultCat) {
+            categorySearch.value = `${defaultCat.icon} ${defaultCat.name}`
+        } else {
+            categorySearch.value = ''
+        }
+        isCategoryOpen.value = false
+    }
+})
+
+// Muda a categoria automaticamente ao mudar o tipo de transação (Receita/Despesa)
+watch(() => form.value.type, (newType) => {
+    if (props.isOpen) {
+        const defaultCat = categoryStore.categories.find(c => c.type === newType)
+        form.value.categoryId = defaultCat ? defaultCat.id : null
+        
+        if (defaultCat) {
+            categorySearch.value = `${defaultCat.icon} ${defaultCat.name}`
+        } else {
+            categorySearch.value = ''
         }
     }
 })
@@ -83,9 +117,52 @@ watch(() => form.value.creditCardId, (newCardId) => {
     }
 })
 
-const filteredCategories = computed(() => {
-    return categoryStore.categories.filter(c => c.type === form.value.type)
+const selectedCategory = computed(() => {
+    return categoryStore.categories.find(c => c.id === form.value.categoryId)
 })
+
+const displayCategories = computed(() => {
+    const typeFiltered = categoryStore.categories.filter(c => c.type === form.value.type)
+    
+    // Se não há pesquisa ou se o input mostra exatamente a categoria selecionada, mostra todas
+    if (!categorySearch.value || (selectedCategory.value && categorySearch.value === `${selectedCategory.value.icon} ${selectedCategory.value.name}`)) {
+        return typeFiltered
+    }
+    
+    return typeFiltered.filter(c => 
+        c.name.toLowerCase().includes(categorySearch.value.toLowerCase()) || 
+        c.icon.includes(categorySearch.value)
+    )
+})
+
+const selectCategory = (cat: any) => {
+    form.value.categoryId = cat.id
+    categorySearch.value = `${cat.icon} ${cat.name}`
+    isCategoryOpen.value = false
+}
+
+const handleCategoryInput = () => {
+    isCategoryOpen.value = true
+    form.value.categoryId = null // Limpa o ID pois o usuário está escrevendo algo novo
+}
+
+const handleClickOutside = (e: MouseEvent) => {
+    if (categoryDropdownRef.value && !categoryDropdownRef.value.contains(e.target as Node)) {
+        isCategoryOpen.value = false
+        // Reverte para a categoria selecionada se existir, ou pega a primeira disponível
+        if (form.value.categoryId) {
+            const cat = categoryStore.categories.find(c => c.id === form.value.categoryId)
+            if (cat) categorySearch.value = `${cat.icon} ${cat.name}`
+        } else {
+            const defaultCat = categoryStore.categories.find(c => c.type === form.value.type)
+            if (defaultCat) {
+                selectCategory(defaultCat)
+            } else {
+                categorySearch.value = ''
+            }
+        }
+    }
+}
 
 const handleSubmit = async () => {
     errorMsg.value = ''
@@ -126,9 +203,9 @@ const handleSubmit = async () => {
             <div v-if="errorMsg" class="alert-error">{{ errorMsg }}</div>
 
             <div class="type-selector">
-                <button class="type-btn" :class="{ active: form.type === 'EXPENSE' }"
+                <button type="button" class="type-btn" :class="{ active: form.type === 'EXPENSE' }"
                     @click="form.type = 'EXPENSE'">Despesa</button>
-                <button class="type-btn" :class="{ active: form.type === 'INCOME' }"
+                <button type="button" class="type-btn" :class="{ active: form.type === 'INCOME' }"
                     @click="form.type = 'INCOME'">Receita</button>
             </div>
 
@@ -154,11 +231,32 @@ const handleSubmit = async () => {
 
                 <div class="input-group">
                     <label>Categoria</label>
-                    <select v-model="form.categoryId" required class="styled-input" :disabled="loading">
-                        <option v-for="cat in filteredCategories" :key="cat.id" :value="cat.id">
-                            {{ cat.icon }} {{ cat.name }}
-                        </option>
-                    </select>
+                    <div class="custom-dropdown" ref="categoryDropdownRef">
+                        <input
+                            type="text"
+                            v-model="categorySearch"
+                            @focus="isCategoryOpen = true"
+                            @input="handleCategoryInput"
+                            class="styled-input dropdown-input"
+                            placeholder="Pesquise ou selecione..."
+                            :disabled="loading"
+                            required
+                        />
+                        <div v-if="isCategoryOpen" class="dropdown-menu glass-card">
+                            <div
+                                v-for="cat in displayCategories"
+                                :key="cat.id"
+                                class="dropdown-item"
+                                :class="{ active: form.categoryId === cat.id }"
+                                @click="selectCategory(cat)"
+                            >
+                                {{ cat.icon }} {{ cat.name }}
+                            </div>
+                            <div v-if="displayCategories.length === 0" class="dropdown-empty">
+                                Nenhuma categoria encontrada
+                            </div>
+                        </div>
+                    </div>
                 </div>
 
                 <div class="input-group" v-if="form.type === 'EXPENSE'">
@@ -260,6 +358,18 @@ const handleSubmit = async () => {
     box-shadow: 0 20px 40px rgba(0, 0, 0, 0.2);
 }
 
+/* Scrollbar Customizada para o Modal */
+.modal-content::-webkit-scrollbar {
+    width: 8px;
+}
+.modal-content::-webkit-scrollbar-thumb {
+    background: var(--glass-border);
+    border-radius: 4px;
+}
+.modal-content::-webkit-scrollbar-track {
+    background: transparent;
+}
+
 .modal-content h2 {
     margin-bottom: 1rem;
     color: var(--text-color);
@@ -330,6 +440,64 @@ const handleSubmit = async () => {
 
 .styled-input:focus {
     border-color: #8B5CF6;
+}
+
+/* Custom Dropdown Styles */
+.custom-dropdown {
+    position: relative;
+}
+
+.dropdown-input {
+    width: 100%;
+    cursor: text;
+}
+
+.dropdown-menu {
+    position: absolute;
+    top: 100%;
+    left: 0;
+    width: 100%;
+    max-height: 200px;
+    overflow-y: auto;
+    background: var(--bg-color); /* Fundo sólido para sobrepor os elementos abaixo */
+    border: 1px solid var(--glass-border);
+    border-radius: 0.75rem;
+    margin-top: 0.5rem;
+    z-index: 100;
+    box-shadow: 0 10px 25px rgba(0,0,0,0.5);
+    padding: 0.5rem;
+}
+
+.dropdown-menu::-webkit-scrollbar {
+    width: 6px;
+}
+
+.dropdown-menu::-webkit-scrollbar-thumb {
+    background: var(--glass-border);
+    border-radius: 4px;
+}
+
+.dropdown-item {
+    padding: 0.8rem 1rem;
+    border-radius: 0.5rem;
+    cursor: pointer;
+    color: var(--text-color);
+    transition: all 0.2s;
+    display: flex;
+    align-items: center;
+    gap: 0.5rem;
+}
+
+.dropdown-item:hover, .dropdown-item.active {
+    background: var(--input-bg);
+    color: #8B5CF6;
+}
+
+.dropdown-empty {
+    padding: 1rem;
+    text-align: center;
+    color: var(--text-muted);
+    font-size: 0.9rem;
 }
 
 .payment-methods {

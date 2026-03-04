@@ -10,7 +10,7 @@ const financeStore = useFinanceStore()
 
 const isModalOpen = ref(false)
 
-const filterMonth = ref('all')
+const filterMonth = ref(`${new Date().getFullYear()}-${String(new Date().getMonth() + 1).padStart(2, '0')}`)
 const filterType = ref('all')
 const filterStatus = ref('all')
 const filterCategory = ref('all')
@@ -47,29 +47,10 @@ const getCategoryIcon = (categoryId: number) => {
   return cat ? cat.icon : '📌'
 }
 
-const availableMonths = computed(() => {
-  const months = new Set<string>()
-  transactionStore.transactions.forEach(tx => {
-    if (tx.transactionDate) {
-      months.add(tx.transactionDate.substring(0, 7))
-    }
-  })
-
-  return Array.from(months).sort().reverse().map(monthStr => {
-    const [year, month] = monthStr.split('-')
-    const date = new Date(Number(year), Number(month) - 1, 1)
-    const label = new Intl.DateTimeFormat('pt-BR', { month: 'long', year: 'numeric' }).format(date)
-    return {
-      value: monthStr,
-      label: label.charAt(0).toUpperCase() + label.slice(1)
-    }
-  })
-})
-
 const filteredTransactions = computed(() => {
   let filtered = transactionStore.transactions
 
-  if (filterMonth.value !== 'all') {
+  if (filterMonth.value && filterMonth.value !== '') {
     filtered = filtered.filter(tx => tx.transactionDate && tx.transactionDate.substring(0, 7) === filterMonth.value)
   }
 
@@ -200,14 +181,12 @@ const handleDeleteClick = (id: number) => {
     <div class="filters-bar glass-card">
       <div class="filter-group">
         <label>Período</label>
-        <div class="select-wrapper">
-          <select v-model="filterMonth" class="styled-input" @change="currentPage = 1">
-            <option value="all">Todos os meses</option>
-            <option v-for="month in availableMonths" :key="month.value" :value="month.value">
-              {{ month.label }}
-            </option>
-          </select>
-        </div>
+        <input 
+          type="month" 
+          v-model="filterMonth" 
+          class="styled-input month-picker" 
+          @change="currentPage = 1" 
+        />
       </div>
 
       <div class="filter-group">
@@ -450,6 +429,15 @@ const handleDeleteClick = (id: number) => {
 
 .styled-input:focus {
   border-color: #8B5CF6;
+}
+
+.month-picker {
+  text-transform: capitalize;
+}
+
+.month-picker::-webkit-calendar-picker-indicator {
+  cursor: pointer;
+  filter: invert(0.5);
 }
 
 .search-wrapper {
