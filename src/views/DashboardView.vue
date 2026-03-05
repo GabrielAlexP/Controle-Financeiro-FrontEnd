@@ -2,9 +2,11 @@
 import { ref, computed, onMounted } from "vue";
 import { useFinanceStore } from "../stores/finance";
 import { useCardStore } from "../stores/card";
+import { useAuthStore } from "../stores/auth";
 import api from "../services/api";
 
 import ConfirmModal from "../components/shared/ConfirmModal.vue";
+import OnboardingWizard from "../components/shared/OnboardingWizard.vue";
 import ExpenseChartCard from "../components/dashboard/ExpenseChartCard.vue";
 import RecentTransactionsCard from "../components/dashboard/RecentTransactionsCard.vue";
 import CreditCardSummaryCard from "../components/dashboard/CreditCardSummaryCard.vue";
@@ -14,6 +16,7 @@ import IndicatorsCard from "../components/dashboard/IndicatorsCard.vue";
 
 const financeStore = useFinanceStore();
 const cardStore = useCardStore();
+const authStore = useAuthStore();
 
 const activeAccountId = ref<number | "geral">("geral");
 
@@ -27,7 +30,7 @@ const confirmModal = ref({
   message: "",
   type: "primary" as "primary" | "danger" | "success",
   isLoading: false,
-  action: async () => {},
+  action: async () => { },
 });
 
 onMounted(async () => {
@@ -88,7 +91,7 @@ const expensesByCategory = computed(() => {
       const catId = Number(catIdStr);
       const cat = financeStore.categories.find((c) => c.id === catId);
       const amount = categoryTotals[catId] || 0;
-      
+
       return {
         id: catId,
         name: cat ? cat.name : "Outros",
@@ -194,141 +197,112 @@ const formatCurrency = (value: number) => {
 </script>
 
 <template>
-  <div class="dashboard-container" v-if="!financeStore.isLoading">
-    <div class="page-header">
-      <div>
-        <h1 class="page-title">Visão Geral</h1>
-        <p class="subtitle">
-          Resumo financeiro de
-          <strong style="text-transform: capitalize">{{ currentMonthFormatted }}</strong>
-          <span v-if="activeAccountId !== 'geral'"
-            >em <strong>{{ activeAccountName }}</strong></span
-          >
-        </p>
+  <main class="view-root">
+    <OnboardingWizard v-if="authStore.user && !authStore.user.isOnboarded" />
+
+    <div class="dashboard-container" v-else-if="!financeStore.isLoading">
+      <div class="page-header">
+        <div>
+          <h1 class="page-title">Visão Geral</h1>
+          <p class="subtitle">
+            Resumo financeiro de
+            <strong style="text-transform: capitalize">{{ currentMonthFormatted }}</strong>
+            <span v-if="activeAccountId !== 'geral'">em <strong>{{ activeAccountName }}</strong></span>
+          </p>
+        </div>
+        <div class="header-actions">
+          <input type="month" v-model="selectedMonth" class="month-picker glass-card" />
+          <button class="btn-outline" @click="financeStore.fetchAllData()">
+            🔄 Atualizar
+          </button>
+        </div>
       </div>
-      <div class="header-actions">
-        <input type="month" v-model="selectedMonth" class="month-picker glass-card" />
-        <button class="btn-outline" @click="financeStore.fetchAllData()">
-          🔄 Atualizar
+
+      <div class="account-tabs">
+        <button class="tab-btn" :class="{ active: activeAccountId === 'geral' }" @click="activeAccountId = 'geral'">
+          📊 Todas as Contas
+        </button>
+        <button v-for="account in financeStore.accounts" :key="account.id" class="tab-btn"
+          :class="{ active: activeAccountId === account.id }" @click="activeAccountId = account.id">
+          🏦 {{ account.name }}
         </button>
       </div>
+
+      <Transition name="view-fade" mode="out-in">
+        <div :key="activeAccountId + selectedMonth.toString()" class="animated-wrapper">
+          <div class="summary-cards">
+            <div class="card glass-card balance-card">
+              <div class="card-icon">🏦</div>
+              <div class="card-info">
+                <h3>Saldo Atual</h3>
+                <p class="amount">{{ formatCurrency(dashboardData.balance) }}</p>
+              </div>
+            </div>
+            <div class="card glass-card income-card">
+              <div class="card-icon green">📈</div>
+              <div class="card-info">
+                <h3>Receitas</h3>
+                <p class="amount positive">+ {{ formatCurrency(dashboardData.income) }}</p>
+              </div>
+            </div>
+            <div class="card glass-card expense-card">
+              <div class="card-icon red">📉</div>
+              <div class="card-info">
+                <h3>Despesas</h3>
+                <p class="amount negative">- {{ formatCurrency(dashboardData.expense) }}</p>
+              </div>
+            </div>
+            <div class="card glass-card net-income-card">
+              <div class="card-icon" :class="dashboardData.netIncome >= 0 ? 'green' : 'red'">
+                ⚖️
+              </div>
+              <div class="card-info">
+                <h3>Sobra</h3>
+                <p class="amount" :class="dashboardData.netIncome >= 0 ? 'positive' : 'negative'">
+                  {{ dashboardData.netIncome >= 0 ? "+" : "" }}
+                  {{ formatCurrency(dashboardData.netIncome) }}
+                </p>
+              </div>
+            </div>
+          </div>
+
+          <div class="dashboard-grid main-grid">
+            <ExpenseChartCard :expenses="expensesByCategory" :total-expense="dashboardData.expense" />
+            <RecentTransactionsCard :transactions="recentTransactions" />
+          </div>
+
+          <div class="dashboard-grid middle-grid">
+            <CreditCardSummaryCard :selected-month="selectedMonth" @pay-bill="handlePayCardBill" />
+            <PendingTransactionsCard title="Transações Pendentes" :transactions="pendingTransactions"
+              empty-message="Tudo em dia! Nenhuma pendência." action-icon="✅" action-title="Marcar como Pago"
+              layout="column" @action="handlePendingAction" />
+          </div>
+
+          <div class="dashboard-grid secondary-grid">
+            <GoalsListCard :goals="financeStore.goals" :show-actions="false" />
+            <IndicatorsCard :selic="financeStore.indicators.SELIC" :cdi="financeStore.indicators.CDI" />
+          </div>
+        </div>
+      </Transition>
+
+      <ConfirmModal :is-open="confirmModal.isOpen" :title="confirmModal.title" :message="confirmModal.message"
+        :type="confirmModal.type" :is-loading="confirmModal.isLoading" @confirm="executeConfirmAction"
+        @cancel="confirmModal.isOpen = false" />
     </div>
 
-    <div class="account-tabs">
-      <button
-        class="tab-btn"
-        :class="{ active: activeAccountId === 'geral' }"
-        @click="activeAccountId = 'geral'"
-      >
-        📊 Todas as Contas
-      </button>
-      <button
-        v-for="account in financeStore.accounts"
-        :key="account.id"
-        class="tab-btn"
-        :class="{ active: activeAccountId === account.id }"
-        @click="activeAccountId = account.id"
-      >
-        🏦 {{ account.name }}
-      </button>
+    <div v-else class="loading-state">
+      <div class="spinner"></div>
+      <h2>Carregando...</h2>
     </div>
-
-    <Transition name="view-fade" mode="out-in">
-      <div :key="activeAccountId + selectedMonth.toString()" class="animated-wrapper">
-        <div class="summary-cards">
-          <div class="card glass-card balance-card">
-            <div class="card-icon">🏦</div>
-            <div class="card-info">
-              <h3>Saldo Atual</h3>
-              <p class="amount">{{ formatCurrency(dashboardData.balance) }}</p>
-            </div>
-          </div>
-          <div class="card glass-card income-card">
-            <div class="card-icon green">📈</div>
-            <div class="card-info">
-              <h3>Receitas</h3>
-              <p class="amount positive">+ {{ formatCurrency(dashboardData.income) }}</p>
-            </div>
-          </div>
-          <div class="card glass-card expense-card">
-            <div class="card-icon red">📉</div>
-            <div class="card-info">
-              <h3>Despesas</h3>
-              <p class="amount negative">- {{ formatCurrency(dashboardData.expense) }}</p>
-            </div>
-          </div>
-          <div class="card glass-card net-income-card">
-            <div
-              class="card-icon"
-              :class="dashboardData.netIncome >= 0 ? 'green' : 'red'"
-            >
-              ⚖️
-            </div>
-            <div class="card-info">
-              <h3>Sobra</h3>
-              <p
-                class="amount"
-                :class="dashboardData.netIncome >= 0 ? 'positive' : 'negative'"
-              >
-                {{ dashboardData.netIncome >= 0 ? "+" : "" }}
-                {{ formatCurrency(dashboardData.netIncome) }}
-              </p>
-            </div>
-          </div>
-        </div>
-
-        <div class="dashboard-grid main-grid">
-          <ExpenseChartCard
-            :expenses="expensesByCategory"
-            :total-expense="dashboardData.expense"
-          />
-          <RecentTransactionsCard :transactions="recentTransactions" />
-        </div>
-
-        <div class="dashboard-grid middle-grid">
-          <CreditCardSummaryCard
-            :selected-month="selectedMonth"
-            @pay-bill="handlePayCardBill"
-          />
-          <PendingTransactionsCard
-            title="Transações Pendentes"
-            :transactions="pendingTransactions"
-            empty-message="Tudo em dia! Nenhuma pendência."
-            action-icon="✅"
-            action-title="Marcar como Pago"
-            layout="column"
-            @action="handlePendingAction"
-          />
-        </div>
-
-        <div class="dashboard-grid secondary-grid">
-          <GoalsListCard :goals="financeStore.goals" :show-actions="false" />
-          <IndicatorsCard
-            :selic="financeStore.indicators.SELIC"
-            :cdi="financeStore.indicators.CDI"
-          />
-        </div>
-      </div>
-    </Transition>
-
-    <ConfirmModal
-      :is-open="confirmModal.isOpen"
-      :title="confirmModal.title"
-      :message="confirmModal.message"
-      :type="confirmModal.type"
-      :is-loading="confirmModal.isLoading"
-      @confirm="executeConfirmAction"
-      @cancel="confirmModal.isOpen = false"
-    />
-  </div>
-
-  <div v-else class="loading-state">
-    <div class="spinner"></div>
-    <h2>Carregando...</h2>
-  </div>
+  </main>
 </template>
 
 <style scoped>
+.view-root {
+  width: 100%;
+  height: 100%;
+}
+
 .dashboard-container {
   display: flex;
   flex-direction: column;
@@ -571,6 +545,7 @@ const formatCurrency = (value: number) => {
 }
 
 @media (max-width: 1024px) {
+
   .main-grid,
   .middle-grid,
   .secondary-grid {

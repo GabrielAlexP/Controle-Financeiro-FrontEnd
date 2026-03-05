@@ -3,7 +3,7 @@ import { ref, computed } from 'vue'
 import api from '../services/api'
 
 export const useAuthStore = defineStore('auth', () => {
-  const user = ref<{ id: number; username: string; profilePictureUrl: string | null } | null>(null)
+  const user = ref<{ id: number; username: string; profilePictureUrl: string | null; isOnboarded: boolean } | null>(null)
 
   const isAuthenticated = computed(() => user.value !== null)
 
@@ -16,6 +16,13 @@ export const useAuthStore = defineStore('auth', () => {
     }
   }
 
+  const completeOnboarding = async (data?: { accountName: string; initialBalance: number }) => {
+    await api.put('/auth/onboard', data || {})
+    if (user.value) {
+      user.value.isOnboarded = true
+    }
+  }
+
   const logout = async () => {
     try {
       await api.post('/auth/logout')
@@ -25,5 +32,5 @@ export const useAuthStore = defineStore('auth', () => {
     }
   }
 
-  return { user, isAuthenticated, fetchUser, logout }
+  return { user, isAuthenticated, fetchUser, completeOnboarding, logout }
 })
