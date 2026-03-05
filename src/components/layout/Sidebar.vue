@@ -16,7 +16,7 @@ const menuItems = [
 
 const handleLogout = async () => {
   await authStore.logout();
-  window.location.href = "/";
+  router.push("/");
 };
 </script>
 
@@ -27,20 +27,15 @@ const handleLogout = async () => {
     </div>
 
     <nav class="nav-menu">
-      <router-link
-        v-for="item in menuItems"
-        :key="item.path"
-        :to="item.path"
-        class="nav-item"
-        :class="{ active: route.path.startsWith(item.path) }"
-      >
+      <router-link v-for="item in menuItems" :key="item.path" :to="item.path" class="nav-item"
+        :class="{ active: route.path.startsWith(item.path) }">
         <span class="icon">{{ item.icon }}</span>
         <span class="text">{{ item.name }}</span>
       </router-link>
     </nav>
 
     <div class="sidebar-footer">
-      <button @click="handleLogout" class="logout-btn">
+      <button @click.prevent="handleLogout" class="logout-btn">
         <span class="icon">🚪</span> Sair
       </button>
     </div>

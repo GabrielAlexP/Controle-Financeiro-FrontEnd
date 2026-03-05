@@ -25,8 +25,9 @@ export const useAuthStore = defineStore('auth', () => {
 
   const logout = async () => {
     try {
-      await api.post('/auth/logout')
+      await api.post('/auth/logout', {})
     } catch (error) {
+      console.error("Erro ao sair:", error)
     } finally {
       user.value = null
     }

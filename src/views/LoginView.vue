@@ -59,6 +59,22 @@ const handleSubmit = async () => {
   }
 };
 
+const handleGuestLogin = async () => {
+  errorMessage.value = "";
+  successMessage.value = "";
+  isLoading.value = true;
+
+  try {
+    await api.post("/auth/guest");
+    await authStore.fetchUser();
+    router.push("/dashboard");
+  } catch (error: any) {
+    errorMessage.value = "Erro ao iniciar sessão de visitante.";
+  } finally {
+    isLoading.value = false;
+  }
+};
+
 const toggleMode = () => {
   isLoginMode.value = !isLoginMode.value;
   username.value = "";
@@ -90,101 +106,69 @@ const toggleMode = () => {
       <div v-if="successMessage" class="alert alert-success">{{ successMessage }}</div>
 
       <Transition name="slide-fade" mode="out-in">
-        <form
-          v-if="isLoginMode"
-          @submit.prevent="handleSubmit"
-          class="login-form"
-          key="login"
-        >
-          <div class="input-group">
-            <label for="username">Usuário</label>
-            <input
-              type="text"
-              id="username"
-              v-model="username"
-              placeholder="Digite seu usuário"
-              required
-              :disabled="isLoading"
-            />
+        <div v-if="isLoginMode" class="auth-section" key="login">
+          <form @submit.prevent="handleSubmit" class="auth-form">
+            <div class="input-group">
+              <label for="username">Usuário</label>
+              <input type="text" id="username" v-model="username" placeholder="Digite seu usuário" required
+                :disabled="isLoading" />
+            </div>
+
+            <div class="input-group">
+              <label for="password">Senha</label>
+              <input type="password" id="password" v-model="password" placeholder="Sua senha" required
+                :disabled="isLoading" />
+            </div>
+
+            <button type="submit" class="btn-primary" :disabled="isLoading">
+              {{ isLoading ? "Processando..." : "Entrar" }}
+            </button>
+          </form>
+
+          <div class="divider">
+            <span>ou</span>
           </div>
 
-          <div class="input-group">
-            <label for="password">Senha</label>
-            <input
-              type="password"
-              id="password"
-              v-model="password"
-              placeholder="Sua senha"
-              required
-              :disabled="isLoading"
-            />
-          </div>
-
-          <button type="submit" class="btn-primary" :disabled="isLoading">
-            {{ isLoading ? "Processando..." : "Entrar" }}
+          <button type="button" class="btn-outline" @click="handleGuestLogin" :disabled="isLoading">
+            Testar como Visitante
           </button>
 
           <p class="toggle-text">
             Ainda não tem uma conta?
-            <span
-              @click="!isLoading && toggleMode()"
-              class="link"
-              :class="{ disabled: isLoading }"
-              >Registre-se</span
-            >
+            <span @click="!isLoading && toggleMode()" class="link" :class="{ disabled: isLoading }">Registre-se</span>
           </p>
-        </form>
+        </div>
 
-        <form v-else @submit.prevent="handleSubmit" class="login-form" key="register">
-          <div class="input-group">
-            <label for="reg-username">Novo Usuário</label>
-            <input
-              type="text"
-              id="reg-username"
-              v-model="username"
-              placeholder="Escolha um nome de usuário"
-              required
-              :disabled="isLoading"
-            />
-          </div>
+        <div v-else class="auth-section" key="register">
+          <form @submit.prevent="handleSubmit" class="auth-form">
+            <div class="input-group">
+              <label for="reg-username">Novo Usuário</label>
+              <input type="text" id="reg-username" v-model="username" placeholder="Escolha um nome de usuário" required
+                :disabled="isLoading" />
+            </div>
 
-          <div class="input-group">
-            <label for="reg-password">Criar Senha</label>
-            <input
-              type="password"
-              id="reg-password"
-              v-model="password"
-              placeholder="Crie uma senha forte"
-              required
-              :disabled="isLoading"
-            />
-          </div>
+            <div class="input-group">
+              <label for="reg-password">Criar Senha</label>
+              <input type="password" id="reg-password" v-model="password" placeholder="Crie uma senha forte" required
+                :disabled="isLoading" />
+            </div>
 
-          <div class="input-group">
-            <label for="profile-pic">Foto de Perfil (Opcional)</label>
-            <input
-              type="url"
-              id="profile-pic"
-              v-model="profilePic"
-              placeholder="URL da sua foto"
-              :disabled="isLoading"
-            />
-          </div>
+            <div class="input-group">
+              <label for="profile-pic">Foto de Perfil (Opcional)</label>
+              <input type="url" id="profile-pic" v-model="profilePic" placeholder="URL da sua foto"
+                :disabled="isLoading" />
+            </div>
 
-          <button type="submit" class="btn-primary" :disabled="isLoading">
-            {{ isLoading ? "Criando Conta..." : "Criar Conta" }}
-          </button>
+            <button type="submit" class="btn-primary" :disabled="isLoading">
+              {{ isLoading ? "Criando Conta..." : "Criar Conta" }}
+            </button>
+          </form>
 
           <p class="toggle-text">
             Já possui uma conta?
-            <span
-              @click="!isLoading && toggleMode()"
-              class="link"
-              :class="{ disabled: isLoading }"
-              >Faça Login</span
-            >
+            <span @click="!isLoading && toggleMode()" class="link" :class="{ disabled: isLoading }">Faça Login</span>
           </p>
-        </form>
+        </div>
       </Transition>
     </main>
   </div>
@@ -233,6 +217,7 @@ const toggleMode = () => {
 }
 
 @keyframes float {
+
   0%,
   100% {
     transform: translateY(0) scale(1);
@@ -271,7 +256,12 @@ const toggleMode = () => {
   font-size: 0.95rem;
 }
 
-.login-form {
+.auth-section {
+  display: flex;
+  flex-direction: column;
+}
+
+.auth-form {
   display: flex;
   flex-direction: column;
   gap: 1.5rem;
@@ -330,11 +320,57 @@ const toggleMode = () => {
   box-shadow: none;
 }
 
+.divider {
+  display: flex;
+  align-items: center;
+  text-align: center;
+  margin: 1.5rem 0;
+  color: var(--text-muted);
+  font-size: 0.85rem;
+  font-weight: 600;
+  text-transform: uppercase;
+  letter-spacing: 1px;
+}
+
+.divider::before,
+.divider::after {
+  content: "";
+  flex: 1;
+  border-bottom: 1px solid var(--glass-border);
+}
+
+.divider span {
+  padding: 0 1rem;
+}
+
+.btn-outline {
+  width: 100%;
+  padding: 1rem;
+  border: 1px solid var(--glass-border);
+  border-radius: 0.75rem;
+  background: transparent;
+  color: var(--text-color);
+  font-size: 1rem;
+  font-weight: 600;
+  cursor: pointer;
+  transition: all 0.2s;
+}
+
+.btn-outline:hover:not(:disabled) {
+  background: var(--input-bg);
+  border-color: #8b5cf6;
+}
+
+.btn-outline:disabled {
+  opacity: 0.7;
+  cursor: not-allowed;
+}
+
 .toggle-text {
   text-align: center;
   font-size: 0.9rem;
   color: var(--text-muted);
-  margin-top: 0.5rem;
+  margin-top: 1.5rem;
 }
 
 .toggle-text .link {
